@@ -385,19 +385,19 @@ class QTPNGRecorder : public QTSequenceRecorder {
     
     public:
         QTPNGRecorder(int w=1920,int h=1080,int FPS=30,NSString *fileName=nil) : QTSequenceRecorder("png ",w,h,FPS,fileName) {}
+        QTPNGRecorder(NSString *fileName) : QTSequenceRecorder("png ",1920,1080,30,fileName) {}
         ~QTPNGRecorder() {}
-    
 };
 
 class QTZPNGRecorder : public QTSequenceRecorder {
     
     public:
         QTZPNGRecorder(int w=1920,int h=1080,int FPS=30,NSString *fileName=nil) : QTSequenceRecorder("zpng",w,h,FPS,fileName) {}
+        QTZPNGRecorder(NSString *fileName) : QTSequenceRecorder("zpng",1920,1080,30,fileName) {}
         ~QTZPNGRecorder() {}
-    
 };
 
-class QTZPNGParser {
+class QTSequenceParser {
     
     private:
 
@@ -433,7 +433,7 @@ class QTZPNGParser {
             return &this->_frames;
         }
 
-        QTZPNGParser(NSString *path) {
+        QTSequenceParser(NSString *path,unsigned int type) {
             this->_path = path;
             NSData *header = this->get((4*7),8);
             if(header) {
@@ -448,7 +448,7 @@ class QTZPNGParser {
                         bytes = (unsigned char *)[moov bytes];
                         bool key = false;
                         for(int k=0; k<len-4; k++) {
-                            if(swapU32(*((unsigned int *)(bytes+k)))==0x7A706E67) { // zpng
+                            if(swapU32(*((unsigned int *)(bytes+k)))==type) {
                                 key = true;
                                 break;
                             }
@@ -478,7 +478,14 @@ class QTZPNGParser {
             }
         }
     
-        ~QTZPNGParser() {
+        ~QTSequenceParser() {
             this->_frames.clear();
         }
+};
+
+class QTZPNGParser : public QTSequenceParser {
+    
+    public:
+        QTZPNGParser(NSString *path) : QTSequenceParser(path,0x7A706E67) {} // zpng
+        ~QTZPNGParser() {}
 };
