@@ -2,7 +2,7 @@
 
 Dependency on [facebook](https://github.com/facebook)/[zstd](https://github.com/facebook/zstd).
 
-Apply zstd compression after PNG-like Sub filtering process.
+Apply zstd compression after PNG-like Sub filtering process.    
 Full HD Realtime encoding in lossless format (ARGB) is fast enough on M1 MacBook Air.
 
 ### Encoding to zpng sequence
@@ -16,7 +16,7 @@ QTZPNGRecorder *recorder = new QTZPNGRecorder(w,h,30,@"./zpng.mov");
 ecorder->add((unsigned char *)dst,len);
 recorder->save();
 ```
-### Encoding to zpng sequence
+### Decoding to zpng sequence
 
 ```
 QTZPNGParser *parser = new QTZPNGParser(@"./zpng.mov");
@@ -29,7 +29,7 @@ filter->add(src);
 
 ### Converting to QuickTime PNG sequence
 
-Any library is required to convert to PNG.
+Any library is required to convert to PNG.    
 Using [stb_image_write](https://github.com/nothings/stb/blob/master/stb_image_write.h) as example.
 
 ```
