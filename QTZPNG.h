@@ -13,7 +13,7 @@ class VideoRecorder {
 
         unsigned int _width = 1920;
         unsigned int _height = 1080;
-        unsigned int _FPS = 30;
+        double _FPS = 30;
     
         NSString *filename() {
             long unixtime = (CFAbsoluteTimeGetCurrent()+kCFAbsoluteTimeIntervalSince1970)*1000;
@@ -54,15 +54,10 @@ class VideoRecorder {
         int width()  { return this->_width; }
         int height() { return this->_height; }
         VideoRecorder(int w,int h,int FPS=30,NSString *fileName=nil) {
-            
             this->_width  = w;
             this->_height = h;
             this->_FPS = FPS;
-            
-            if(fileName) {
-                this->_fileName = fileName;
-            }
-            
+            if(fileName) this->_fileName = fileName;
         }
         virtual void add(unsigned int *data,int length) {}
         virtual void save() {}
@@ -91,7 +86,7 @@ class QTSequenceRecorder : public VideoRecorder {
             return ((n>>24)&0xFF)|(((n>>16)&0xFF)<<8)|(((n>>8)&0xFF)<<16)|((n&0xFF)<<24);
         }
 
-        unsigned short swapU16(unsigned int n) {
+        unsigned short swapU16(unsigned short n) {
             return ((n>>8)&0xFF)|((n&0xFF)<<8);
         }
 
@@ -341,7 +336,7 @@ class QTSequenceRecorder : public VideoRecorder {
                 this->setVersionWithFlag(bin);
                 this->setU32(bin,1); // Number of entries
                 this->setU32(bin,(unsigned int)this->_frames.size());
-                this->setU32(bin,TimeScale/this->_FPS);
+                this->setU32(bin,(unsigned int)(TimeScale/this->_FPS));
                 this->initAtom(bin,"stsc",28);
                 this->setVersionWithFlag(bin);
                 this->setU32(bin,1); // Number of entries
@@ -382,7 +377,6 @@ class QTSequenceRecorder : public VideoRecorder {
 };
 
 class QTPNGRecorder : public QTSequenceRecorder {
-    
     public:
         QTPNGRecorder(int w=1920,int h=1080,int FPS=30,NSString *fileName=nil) : QTSequenceRecorder("png ",w,h,FPS,fileName) {}
         QTPNGRecorder(NSString *fileName) : QTSequenceRecorder("png ",1920,1080,30,fileName) {}
@@ -390,7 +384,6 @@ class QTPNGRecorder : public QTSequenceRecorder {
 };
 
 class QTZPNGRecorder : public QTSequenceRecorder {
-    
     public:
         QTZPNGRecorder(int w=1920,int h=1080,int FPS=30,NSString *fileName=nil) : QTSequenceRecorder("zpng",w,h,FPS,fileName) {}
         QTZPNGRecorder(NSString *fileName) : QTSequenceRecorder("zpng",1920,1080,30,fileName) {}
@@ -401,15 +394,26 @@ class QTSequenceParser {
     
     private:
 
+        unsigned int _width = 0;
+        unsigned int _height = 0;
+        double _FPS = 0;
+    
         NSString *_path;
         std::vector<std::pair<unsigned int,unsigned int>> _frames;
 
+        unsigned short swapU16(unsigned short n) {
+            return ((n>>8)&0xFF)|((n&0xFF)<<8);
+        }
+        
         unsigned int swapU32(unsigned int n) {
             return ((n>>24)&0xFF)|(((n>>16)&0xFF)<<8)|(((n>>8)&0xFF)<<16)|((n&0xFF)<<24);
         }
     
     public:
     
+        unsigned long width() { return this->_width; }
+        unsigned long height() { return this->_height; }
+        unsigned long FPS() { return this->_FPS; }
         unsigned long length() { return this->_frames.size(); }
 
         NSData *get(off_t offset, size_t bytes) {
@@ -432,43 +436,77 @@ class QTSequenceParser {
         std::vector<std::pair<unsigned int,unsigned int>> *frames() {
             return &this->_frames;
         }
+    
+        unsigned int atom(std::string str) {
+            assert(str.length()==4);
+            unsigned char *key =(unsigned char *)str.c_str();
+            return key[0]<<24|key[1]<<16|key[2]<<8|key[3];
+        }
 
-        QTSequenceParser(NSString *path,unsigned int type) {
+        QTSequenceParser(NSString *path,std::string key) {
+            
+            unsigned int type = atom(key);
+            
             this->_path = path;
             NSData *header = this->get((4*7),8);
+                    
             if(header) {
                 unsigned char *bytes = (unsigned char *)[header bytes];
-                if((swapU32(((unsigned int *)bytes)[1])==0x6D646174)) { // mdat
+                if((swapU32(((unsigned int *)bytes)[1])==atom("mdat"))) {
                     int offset = swapU32(*((unsigned int *)bytes));
                     NSData *moov = this->get((4*8)+offset-4,8);
                     bytes = (unsigned char *)[moov bytes];
                     int len = swapU32(*((unsigned int *)bytes));
-                    if(swapU32(((unsigned int *)bytes)[1])==0x6D6F6F76) { // moov
+                    if(swapU32(((unsigned int *)bytes)[1])==atom("moov")) {
                         moov = this->get((4*8)+offset-4,len);
                         bytes = (unsigned char *)[moov bytes];
                         bool key = false;
-                        for(int k=0; k<len-4; k++) {
-                            if(swapU32(*((unsigned int *)(bytes+k)))==type) {
-                                key = true;
-                                break;
+                        int seek = ((4*4)+4+6+2+2+2+4+4+4);
+                        for(int k=0; k<len-(seek+2*2); k++) {
+                            if(swapU32(*((unsigned int *)(bytes+k)))==atom("stsd")) {
+                                if(swapU32(*((unsigned int *)(bytes+k+(4*4))))==type) {
+                                    this->_width = swapU16(*((unsigned short *)(bytes+k+seek)));
+                                    this->_height = swapU16(*((unsigned short *)(bytes+k+seek+2)));
+                                    if(this->_width>0&&this->_height>0) key = true;
+                                    break;
+                                }
                             }
                         }
                         if(key) {
+                            unsigned int TimeScale = 0;
                             for(int k=0; k<len-4; k++) {
-                                if(swapU32(*((unsigned int *)(bytes+k)))==0x7374737A) { // stsz
-                                    k+=4;
-                                    k+=4;
-                                    k+=4;
-                                    if(k<len) {
-                                        int seek = 4*9;
-                                        int frames = swapU32(*((unsigned int *)(bytes+k)));
-                                        for(int f=0; f<frames; f++) {
-                                            k+=4;
-                                            int size = swapU32(*((unsigned int *)(bytes+k)));
-                                            this->_frames.push_back(std::make_pair(seek,size));
-                                            seek+=size;
-                                        }
+                                if(swapU32(*((unsigned int *)(bytes+k)))==atom("mvhd")) {
+                                    if(k+(4*5)<len) {
+                                        TimeScale = swapU32(*((unsigned int *)(bytes+k+(4*4))));
                                         break;
+                                    }
+                                }
+                            }
+                            if(TimeScale>0) {
+                                for(int k=0; k<len-4; k++) {
+                                    if(swapU32(*((unsigned int *)(bytes+k)))==atom("stts")) {
+                                        if(k+(4*5)<len) {
+                                            this->_FPS = TimeScale/(double)(swapU32(*((unsigned int *)(bytes+k+(4*4)))));
+                                            break;
+                                        }
+                                    }
+                                }
+                                if(this->_FPS>0) {
+                                    for(int k=0; k<len-4; k++) {
+                                        if(swapU32(*((unsigned int *)(bytes+k)))==atom("stsz")) {
+                                            k+=(4*3);
+                                            if(k<len) {
+                                                int seek = 4*9;
+                                                int frames = swapU32(*((unsigned int *)(bytes+k)));
+                                                for(int f=0; f<frames; f++) {
+                                                    k+=4;
+                                                    int size = swapU32(*((unsigned int *)(bytes+k)));
+                                                    this->_frames.push_back(std::make_pair(seek,size));
+                                                    seek+=size;
+                                                }
+                                                break;
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -483,9 +521,14 @@ class QTSequenceParser {
         }
 };
 
-class QTZPNGParser : public QTSequenceParser {
-    
+class QTPNGParser : public QTSequenceParser {
     public:
-        QTZPNGParser(NSString *path) : QTSequenceParser(path,0x7A706E67) {} // zpng
+        QTPNGParser(NSString *path) : QTSequenceParser(path,"png ") {}
+        ~QTPNGParser() {}
+};
+
+class QTZPNGParser : public QTSequenceParser {
+    public:
+        QTZPNGParser(NSString *path) : QTSequenceParser(path,"zpng") {}
         ~QTZPNGParser() {}
 };
