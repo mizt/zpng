@@ -13,7 +13,7 @@ filter->sub(src);
 size_t len = ZSTD_compress(dst,(w*h)<<2,src,(w*h)<<2,1);
 
 QTZPNGRecorder *recorder = new QTZPNGRecorder(w,h,30,@"./zpng.mov");
-ecorder->add((unsigned char *)dst,len);
+recorder->add((unsigned char *)dst,len);
 recorder->save();
 ```
 ### Decoding to zpng sequence
