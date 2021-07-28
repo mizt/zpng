@@ -47,6 +47,11 @@ ecorder->add(png,len);
 recorder->save();
 ```
 
+### Browser Support
+
+Support for decoding via emscripten.    
+[https://github.com/mizt/zpng/tree/master/emscripten](https://github.com/mizt/zpng/tree/master/emscripten)
+
 ### Similar project
 
 [catid](https://github.com/catid)/[Zpng](https://github.com/catid/Zpng)
