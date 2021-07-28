@@ -474,7 +474,7 @@ class QTSequenceParser {
                         }
                         if(key) {
                             unsigned int TimeScale = 0;
-                            for(int k=0; k<len-4; k++) {
+                            for(int k=0; k<len-3; k++) {
                                 if(swapU32(*((unsigned int *)(bytes+k)))==atom("mvhd")) {
                                     if(k+(4*5)<len) {
                                         TimeScale = swapU32(*((unsigned int *)(bytes+k+(4*4))));
@@ -483,7 +483,7 @@ class QTSequenceParser {
                                 }
                             }
                             if(TimeScale>0) {
-                                for(int k=0; k<len-4; k++) {
+                                for(int k=0; k<len-3; k++) {
                                     if(swapU32(*((unsigned int *)(bytes+k)))==atom("stts")) {
                                         if(k+(4*5)<len) {
                                             this->_FPS = TimeScale/(double)(swapU32(*((unsigned int *)(bytes+k+(4*4)))));
@@ -492,7 +492,7 @@ class QTSequenceParser {
                                     }
                                 }
                                 if(this->_FPS>0) {
-                                    for(int k=0; k<len-4; k++) {
+                                    for(int k=0; k<len-3; k++) {
                                         if(swapU32(*((unsigned int *)(bytes+k)))==atom("stsz")) {
                                             k+=(4*3);
                                             if(k<len) {
