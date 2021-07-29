@@ -1,3 +1,6 @@
+#import <vector>
+#import <string>
+
 class VideoRecorder {
     
     protected:
