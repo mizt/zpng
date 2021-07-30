@@ -316,7 +316,7 @@ class QTSequenceRecorder : public VideoRecorder {
                 [bin appendBytes:new unsigned int[1]{0} length:4];
                 this->setU16(bin,1); // Frame count
                 this->setCompressorName(bin,"'"+this->_type+"'");
-                this->setU16(bin,24); // Depth
+                this->setU16(bin,32); // Depth
                 this->setU16(bin,0xFFFF); // Color table ID
                 this->initAtom(bin,"colr",18);
                 this->setString(bin,"nclc");
