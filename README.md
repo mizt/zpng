@@ -8,7 +8,7 @@ Full HD Realtime encoding in lossless format (ARGB) is fast enough on M1 MacBook
 ### Encoding to zpng sequence
 
 ```
-Filter *filter = new Filter(w,h);
+ABGRFilter *filter = new ABGRFilter(w,h);
 filter->sub(src);
 size_t len = ZSTD_compress(dst,(w*h)<<2,src,(w*h)<<2,1);
 
@@ -23,7 +23,7 @@ QTZPNGParser *parser = new QTZPNGParser(@"./zpng.mov");
 NSData *zpng = parser->get(0);
 ZSTD_decompress(src,(w*h)<<2,[zpng bytes],[zpng length]);
 
-Filter *filter = new Filter(w,h);
+ABGRFilter *filter = new ABGRFilter(w,h);
 filter->add(src);
 ```
 
@@ -37,7 +37,7 @@ QTZPNGParser *parser = new QTZPNGParser(@"./zpng.mov");
 NSData *zpng = parser->get(0);
 ZSTD_decompress(src,(w*h)<<2,[zpng bytes],[zpng length]);
 
-Filter *filter = new Filter(w,h);
+ABGRFilter *filter = new ABGRFilter(w,h);
 filter->add(src);
 
 int len = 0;
