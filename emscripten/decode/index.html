@@ -107,7 +107,6 @@
                     
                     let frame = 0;
                     setInterval(function() {
-                       const then = Date.now();
                        const seek = list[frame][0];
                        const length = list[frame][1];
                        for(let k=0; k<length; k++) src[k] = bin[seek+k];
