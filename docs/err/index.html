@@ -77,7 +77,6 @@
                             let seek = 4*9;
                             const frames = U32(moov,k);
                             k+=4;
-                            console.log("frames",frames);
                             for(let f=0; f<frames; f++) {
                                 if(k<moov_size-3) {
                                     const size = U32(moov,k);
