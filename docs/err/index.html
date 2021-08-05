@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<title>zpng/err</title>
+        <meta name="viewport" content="initial-scale=1.0,maximum-scale=1.0">
+        <style>
+                
+            * {
+               margin:0;
+               padding:0;
+            }
+        
+            body {
+                background:#808080;
+                overflow:hidden;
+            }
+        
+        </style>
+        <script src="./decode.js"></script>
+	</head>
+	<body>
+        <script>
+            
+            const path = "./test.mov";
+            
+            const U32 = function(u8,addr) { return u8[addr]<<24|u8[addr+1]<<16|u8[addr+2]<<8|u8[addr+3]; }
+            const U16 = function(u8,addr) { return u8[addr]<<8|u8[addr+1]; }
+            const atoi = function(a) { return a.charCodeAt(0); }
+ 
+            const xhr = new XMLHttpRequest();
+            xhr.addEventListener("load",function() {
+               
+                const bin = new Uint8Array(this.response);
+                let list = [];
+                
+                let w = 0;
+                let h = 0;
+                let timeScale = 0;
+                let FPS = 0;
+                
+                const mdat_offset = U32(bin,4*7);
+                const moov = new Uint8Array(this.response,4*7+mdat_offset);
+                const moov_size = U32(bin,4*7+mdat_offset);
+                for(let k=0; k<moov_size-3; k++) {
+                    if(moov[k]===atoi("s")&&moov[k+1]===atoi("t")&&moov[k+2]===atoi("s")&&moov[k+3]===atoi("d")) {
+                        k+=(4*4);
+                        if(k<moov_size-3) {
+                            if(U32(moov,k)==(atoi("z")<<24|atoi("p")<<16|atoi("n")<<8|atoi("g"))) {
+                                k+=4+6+2+2+2+4+4+4;
+                                if(k<moov_size-3) {
+                                    w = U16(moov,k);
+                                    k+=2;
+                                    h = U16(moov,k);
+                                    k+=2;
+                                }
+                            }
+                        }
+                    }
+                    else if(moov[k]===atoi("m")&&moov[k+1]===atoi("v")&&moov[k+2]===atoi("h")&&moov[k+3]===atoi("d")) {
+                        k+=(4*4);
+                        if(k<moov_size-3) {
+                            timeScale = U32(moov,k);
+                            k+=4;
+                        }
+                    }
+                    else if(moov[k]===atoi("s")&&moov[k+1]===atoi("t")&&moov[k+2]===atoi("t")&&moov[k+3]===atoi("s")) {
+                        k+=(4*4);
+                        if(k<moov_size-3) {
+                            FPS = U32(moov,k);
+                            k+=4;
+                        }
+                    }
+                    else if(moov[k]===atoi("s")&&moov[k+1]===atoi("t")&&moov[k+2]===atoi("s")&&moov[k+3]===atoi("z")) {
+                        k+=(4*3);
+                        if(k<moov_size-3) {
+                            let seek = 4*9;
+                            const frames = U32(moov,k);
+                            k+=4;
+                            console.log("frames",frames);
+                            for(let f=0; f<frames; f++) {
+                                if(k<moov_size-3) {
+                                    const size = U32(moov,k);
+                                    k+=4;
+                                    list.push([seek,size]);
+                                    seek+=size;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                if(w>0&&h>0&&timeScale&&FPS) {
+                    const canvas = document.createElement("canvas");
+                    canvas.width = w;
+                    canvas.height = h;
+                    canvas.style.width = w+"px";
+                    canvas.style.height = h+"px";
+                    document.body.appendChild(canvas);
+                    let ctx = canvas.getContext("2d");
+                    let imageData = ctx.getImageData(0,0,w,h);
+                    
+                    const size = (w*h)<<2;
+                    let src = new Uint8Array(Module.HEAPU8.buffer,Module._malloc(size),size);
+                    let dst = new Uint8Array(Module.HEAPU8.buffer,Module._malloc(size),size);
+                    let decode = Module.cwrap("decode","void",["number","number","number","number","number"]);
+                    
+                    let frame = 0;
+                    setInterval(function() {
+                       const seek = list[frame][0];
+                       const length = list[frame][1];
+                       for(let k=0; k<length; k++) src[k] = bin[seek+k];
+                       let len = (0.25+Math.round(Math.random()*2.5)>>0);
+                       while(len) {
+                           src[(Math.random()*length)>>0] = (Math.random()*0x100)>>0;
+                           len--;
+                       }
+                       decode(dst.byteOffset,w,h,src.byteOffset,length);
+                       imageData.data.set(dst);
+                       ctx.putImageData(imageData,0,0);
+                       frame++;
+                       frame%=list.length;
+                    },1000.0/(timeScale/FPS));
+                }
+            });
+            xhr.open("GET",path);
+            xhr.responseType = "arraybuffer";
+            xhr.send();
+            
+		</script>
+	</body>
+</html>
