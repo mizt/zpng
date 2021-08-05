@@ -16,10 +16,21 @@
                 overflow:hidden;
             }
         
+            div#progress  {
+                position:fixed;
+                top:0;
+                left:0;
+                z-index:1024;
+                width:0px;
+                height:4px;
+                background:#000;
+            }
+        
         </style>
         <script src="./decode.js"></script>
 	</head>
 	<body>
+        <div id="progress"></div>
         <script>
             
             const path = "./test.mov";
@@ -29,7 +40,18 @@
             const atoi = function(a) { return a.charCodeAt(0); }
  
             const xhr = new XMLHttpRequest();
-            xhr.addEventListener("load",function() {
+            
+            const progress = document.getElementById("progress");
+            
+            xhr.addEventListener("progress",function(e) {
+                if(e.loaded&&e.total) {
+                    progress.style.width = (((e.loaded/e.total)*1279)>>0)+"px";
+                }
+            });
+        
+            xhr.addEventListener("load",function(e) {
+               
+                progress.style.display = "none";
                
                 const bin = new Uint8Array(this.response);
                 let list = [];
