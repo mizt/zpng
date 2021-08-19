@@ -401,7 +401,6 @@ class QTSequenceParser {
         unsigned int _height = 0;
         double _FPS = 0;
     
-        NSString *_path;
         std::vector<std::pair<unsigned int,unsigned int>> _frames;
 
         unsigned short swapU16(unsigned short n) {
@@ -419,9 +418,7 @@ class QTSequenceParser {
         double FPS() { return this->_FPS; }
         unsigned long length() { return this->_frames.size(); }
 
-        std::vector<std::pair<unsigned int,unsigned int>> *frames() {
-            return &this->_frames;
-        }
+        std::vector<std::pair<unsigned int,unsigned int>> *frames() { return &this->_frames; }
     
         unsigned int atom(std::string str) {
             assert(str.length()==4);
@@ -429,24 +426,26 @@ class QTSequenceParser {
             return key[0]<<24|key[1]<<16|key[2]<<8|key[3];
         }
 
-        QTSequenceParser(NSString *path,std::string key) {
+        void parse(FILE *fp,std::string key) {
             
-            this->_path = path;
-            FILE *fp = fopen([path UTF8String],"rb");
             if(fp!=NULL){
+                
                 unsigned int type = this->atom(key);
+                
                 /*
                     fpos_t size = 0;
                     fseek(fp,0,SEEK_END);
                     fgetpos(fp,&size);
                     NSLog(@"%lld",size);
                 */
+                
                 unsigned int buffer;
                 fseek(fp,4*7,SEEK_SET);
                 fread(&buffer,sizeof(unsigned int),1,fp);
                 unsigned int offset = this->swapU32(buffer);
                 fread(&buffer,sizeof(unsigned int),1,fp);
                 if(this->swapU32(buffer)==this->atom("mdat")) {
+                    
                     fseek(fp,(4*8)+offset-4,SEEK_SET);
                     fread(&buffer,sizeof(unsigned int),1,fp);
                     int len = this->swapU32(buffer);
@@ -516,9 +515,20 @@ class QTSequenceParser {
                         }
                         
                         delete[] moov;
+                        
                     }
                 }
             }
+        }
+    
+        QTSequenceParser(FILE *fp,std::string key) {
+            this->parse(fp,key);
+        }
+    
+        QTSequenceParser(NSString *path,std::string key) {
+            FILE *fp = fopen([path UTF8String],"rb");
+            this->parse(fp,key);
+            fclose(fp);
         }
     
         ~QTSequenceParser() {
@@ -529,11 +539,13 @@ class QTSequenceParser {
 class QTPNGParser : public QTSequenceParser {
     public:
         QTPNGParser(NSString *path) : QTSequenceParser(path,"png ") {}
+        QTPNGParser(FILE *fp) : QTSequenceParser(fp,"png ") {}
         ~QTPNGParser() {}
 };
 
 class QTZPNGParser : public QTSequenceParser {
     public:
         QTZPNGParser(NSString *path) : QTSequenceParser(path,"zpng") {}
+        QTZPNGParser(FILE *fp) : QTSequenceParser(fp,"zpng") {}
         ~QTZPNGParser() {}
 };
