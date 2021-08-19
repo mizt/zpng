@@ -396,6 +396,8 @@ class QTZPNGRecorder : public QTSequenceRecorder {
 class QTSequenceParser {
     
     private:
+    
+        FILE *_fp;
 
         unsigned int _width = 0;
         unsigned int _height = 0;
@@ -413,12 +415,29 @@ class QTSequenceParser {
     
     public:
     
-        unsigned long width() { return this->_width; }
-        unsigned long height() { return this->_height; }
+        unsigned int width() { return this->_width; }
+        unsigned int height() { return this->_height; }
         double FPS() { return this->_FPS; }
-        unsigned long length() { return this->_frames.size(); }
+        unsigned int length() { return (unsigned int)this->_frames.size(); }
 
+        std::pair<unsigned int,unsigned int> frame(int n) { return this->_frames[n]; }
         std::vector<std::pair<unsigned int,unsigned int>> *frames() { return &this->_frames; }
+    
+        NSData *get(off_t offset, size_t bytes) {
+            void *data = malloc(bytes);
+            fseeko(this->_fp,offset,SEEK_SET);
+            fread(data,1,bytes,this->_fp);
+            NSData *buffer = [NSData dataWithBytesNoCopy:data length:bytes];
+            free(data);
+            return buffer;
+        }
+    
+        NSData *get(unsigned long n) {
+            if(n<this->_frames.size()) {
+                return this->get(this->_frames[n].first,this->_frames[n].second);
+            }
+            return nil;
+        }
     
         unsigned int atom(std::string str) {
             assert(str.length()==4);
@@ -427,6 +446,8 @@ class QTSequenceParser {
         }
 
         void parse(FILE *fp,std::string key) {
+            
+            this->_fp = fp;
             
             if(fp!=NULL){
                 
@@ -440,13 +461,13 @@ class QTSequenceParser {
                 */
                 
                 unsigned int buffer;
-                fseek(fp,4*7,SEEK_SET);
+                fseeko(fp,4*7,SEEK_SET);
                 fread(&buffer,sizeof(unsigned int),1,fp);
                 unsigned int offset = this->swapU32(buffer);
                 fread(&buffer,sizeof(unsigned int),1,fp);
                 if(this->swapU32(buffer)==this->atom("mdat")) {
                     
-                    fseek(fp,(4*8)+offset-4,SEEK_SET);
+                    fseeko(fp,(4*8)+offset-4,SEEK_SET);
                     fread(&buffer,sizeof(unsigned int),1,fp);
                     int len = this->swapU32(buffer);
                     fread(&buffer,sizeof(unsigned int),1,fp);
@@ -532,6 +553,7 @@ class QTSequenceParser {
         }
     
         ~QTSequenceParser() {
+            this->_fp = NULL;
             this->_frames.clear();
         }
 };
