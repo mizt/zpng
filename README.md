@@ -52,6 +52,24 @@ recorder->save();
 Support for decoding via emscripten.    
 [https://github.com/mizt/zpng/tree/master/emscripten](https://github.com/mizt/zpng/tree/master/emscripten)
 
+### Premiere Pro importers
+
+File Extension is 'zpng'.
+
+```
+char formatname[255] = "zpng";
+char shortname[32] = "zpng";
+char platformXten[256] = "zpng\0";
+```
+
+```
+resource 'IMPT' (1000)
+{
+	0x7A706E67 // 'zpng'
+};
+```
+
 ### Similar project
 
 [catid](https://github.com/catid)/[Zpng](https://github.com/catid/Zpng)
+
