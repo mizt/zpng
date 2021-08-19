@@ -65,7 +65,7 @@ char platformXten[256] = "zpng\0";
 ```
 resource 'IMPT' (1000)
 {
-	0x7A706E67 // 'zpng'
+    0x7A706E67 // 'zpng'
 };
 ```
 
