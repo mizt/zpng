@@ -416,26 +416,9 @@ class QTSequenceParser {
     
         unsigned long width() { return this->_width; }
         unsigned long height() { return this->_height; }
-        unsigned long FPS() { return this->_FPS; }
+        double FPS() { return this->_FPS; }
         unsigned long length() { return this->_frames.size(); }
 
-        NSData *get(off_t offset, size_t bytes) {
-            FILE *file = fopen([this->_path UTF8String],"rb");
-            if(file==NULL) return nil;
-            void *data = malloc(bytes);
-            fseeko(file,offset,SEEK_SET);
-            fread(data,1,bytes,file);
-            fclose(file);
-            return [NSData dataWithBytesNoCopy:data length:bytes];
-        }
-        
-        NSData *get(unsigned long n) {
-            if(n<this->_frames.size()) {
-                return this->get(this->_frames[n].first,this->_frames[n].second);
-            }
-            return nil;
-        }
-        
         std::vector<std::pair<unsigned int,unsigned int>> *frames() {
             return &this->_frames;
         }
@@ -448,62 +431,79 @@ class QTSequenceParser {
 
         QTSequenceParser(NSString *path,std::string key) {
             
-            unsigned int type = atom(key);
-            
             this->_path = path;
-            NSData *header = this->get((4*7),8);
-                    
-            if(header) {
-                unsigned char *bytes = (unsigned char *)[header bytes];
-                if((swapU32(((unsigned int *)bytes)[1])==atom("mdat"))) {
-                    int offset = swapU32(*((unsigned int *)bytes));
-                    NSData *moov = this->get((4*8)+offset-4,8);
-                    bytes = (unsigned char *)[moov bytes];
-                    int len = swapU32(*((unsigned int *)bytes));
-                    if(swapU32(((unsigned int *)bytes)[1])==atom("moov")) {
-                        moov = this->get((4*8)+offset-4,len);
-                        bytes = (unsigned char *)[moov bytes];
+            FILE *fp = fopen([path UTF8String],"rb");
+            if(fp!=NULL){
+                unsigned int type = this->atom(key);
+                /*
+                    fpos_t size = 0;
+                    fseek(fp,0,SEEK_END);
+                    fgetpos(fp,&size);
+                    NSLog(@"%lld",size);
+                */
+                unsigned int buffer;
+                fseek(fp,4*7,SEEK_SET);
+                fread(&buffer,sizeof(unsigned int),1,fp);
+                unsigned int offset = this->swapU32(buffer);
+                fread(&buffer,sizeof(unsigned int),1,fp);
+                if(this->swapU32(buffer)==this->atom("mdat")) {
+                    fseek(fp,(4*8)+offset-4,SEEK_SET);
+                    fread(&buffer,sizeof(unsigned int),1,fp);
+                    int len = this->swapU32(buffer);
+                    fread(&buffer,sizeof(unsigned int),1,fp);
+                    if(this->swapU32(buffer)==atom("moov")) {
+                        
+                        //NSLog(@"%d",len);
+                        unsigned char *moov = new unsigned char[len-8];
+                        fread(moov,sizeof(unsigned char),len-8,fp);
                         bool key = false;
                         int seek = ((4*4)+4+6+2+2+2+4+4+4);
+                        
                         for(int k=0; k<len-(seek+2*2); k++) {
-                            if(swapU32(*((unsigned int *)(bytes+k)))==atom("stsd")) {
-                                if(swapU32(*((unsigned int *)(bytes+k+(4*4))))==type) {
-                                    this->_width = swapU16(*((unsigned short *)(bytes+k+seek)));
-                                    this->_height = swapU16(*((unsigned short *)(bytes+k+seek+2)));
+                            if(this->swapU32(*((unsigned int *)(moov+k)))==this->atom("stsd")) {
+                                if(this->swapU32(*((unsigned int *)(moov+k+(4*4))))==type) {
+                                    this->_width = this->swapU16(*((unsigned short *)(moov+k+seek)));
+                                    this->_height = this->swapU16(*((unsigned short *)(moov+k+seek+2)));
                                     if(this->_width>0&&this->_height>0) key = true;
                                     break;
                                 }
                             }
                         }
+                        
                         if(key) {
+                           
                             unsigned int TimeScale = 0;
                             for(int k=0; k<len-3; k++) {
-                                if(swapU32(*((unsigned int *)(bytes+k)))==atom("mvhd")) {
+                                if(this->swapU32(*((unsigned int *)(moov+k)))==atom("mvhd")) {
                                     if(k+(4*5)<len) {
-                                        TimeScale = swapU32(*((unsigned int *)(bytes+k+(4*4))));
+                                        TimeScale = this->swapU32(*((unsigned int *)(moov+k+(4*4))));
                                         break;
                                     }
                                 }
                             }
+                            
                             if(TimeScale>0) {
+                                
                                 for(int k=0; k<len-3; k++) {
-                                    if(swapU32(*((unsigned int *)(bytes+k)))==atom("stts")) {
+                                    if(this->swapU32(*((unsigned int *)(moov+k)))==atom("stts")) {
                                         if(k+(4*5)<len) {
-                                            this->_FPS = TimeScale/(double)(swapU32(*((unsigned int *)(bytes+k+(4*4)))));
+                                            this->_FPS = TimeScale/(double)(swapU32(*((unsigned int *)(moov+k+(4*4)))));
                                             break;
                                         }
                                     }
                                 }
+                                
                                 if(this->_FPS>0) {
+                                    
                                     for(int k=0; k<len-3; k++) {
-                                        if(swapU32(*((unsigned int *)(bytes+k)))==atom("stsz")) {
+                                        if(this->swapU32(*((unsigned int *)(moov+k)))==atom("stsz")) {
                                             k+=(4*3);
                                             if(k<len) {
                                                 int seek = 4*9;
-                                                int frames = swapU32(*((unsigned int *)(bytes+k)));
+                                                int frames = this->swapU32(*((unsigned int *)(moov+k)));
                                                 for(int f=0; f<frames; f++) {
                                                     k+=4;
-                                                    int size = swapU32(*((unsigned int *)(bytes+k)));
+                                                    int size = this->swapU32(*((unsigned int *)(moov+k)));
                                                     this->_frames.push_back(std::make_pair(seek,size));
                                                     seek+=size;
                                                 }
@@ -514,6 +514,8 @@ class QTSequenceParser {
                                 }
                             }
                         }
+                        
+                        delete[] moov;
                     }
                 }
             }
