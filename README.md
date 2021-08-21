@@ -50,9 +50,15 @@ recorder->save();
 ### Browser Support
 
 Support for decoding via emscripten.    
-[https://github.com/mizt/zpng/tree/master/emscripten](https://github.com/mizt/zpng/tree/master/emscripten)
+[https://github.com/mizt/zpng/tree/master/emscripten/](https://github.com/mizt/zpng/tree/master/emscripten/)
 
 ### Premiere Pro importers
+
+See aloso  [https://github.com/fnordware/AdobeOgg/tree/theora/](https://github.com/fnordware/AdobeOgg/tree/theora/)
+
+Directly import in After Effects via Premiere Pro Importer.    
+[https://github.com/mizt/zpng/tree/master/premiere/](https://github.com/mizt/zpng/tree/master/premiere/)
+
 
 File Extension is 'zpng'.
 
@@ -68,6 +74,7 @@ resource 'IMPT' (1000)
     0x7A706E67 // 'zpng'
 };
 ```
+
 
 ### Similar project
 

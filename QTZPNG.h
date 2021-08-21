@@ -357,10 +357,10 @@ class QTSequenceRecorder : public VideoRecorder {
                 Atom stco = initAtom(bin,"stco");
                 this->setVersionWithFlag(bin);
                 this->setU32(bin,(unsigned int)this->_frames.size()); // Number of entries
-                int seek = this->mdat.second+8;
+                int chunk = this->mdat.second+8;
                 for(int k=0; k<this->_frames.size(); k++) {
-                    this->setU32(bin,seek); // Chunk
-                    seek+=this->_frames[k];
+                    this->setU32(bin,chunk); // Chunk
+                    chunk+=this->_frames[k];
                 }
                 this->setAtomSize(bin,minf.second);
                 this->setAtomSize(bin,stco.second);
@@ -403,8 +403,9 @@ class QTSequenceParser {
         unsigned int _height = 0;
         double _FPS = 0;
     
-        std::vector<std::pair<unsigned int,unsigned int>> _frames;
-
+        unsigned int _totalFrames = 0;
+        std::pair<unsigned int,unsigned int> *_frames = nullptr;
+    
         unsigned short swapU16(unsigned short n) {
             return ((n>>8)&0xFF)|((n&0xFF)<<8);
         }
@@ -418,22 +419,25 @@ class QTSequenceParser {
         unsigned int width() { return this->_width; }
         unsigned int height() { return this->_height; }
         double FPS() { return this->_FPS; }
-        unsigned int length() { return (unsigned int)this->_frames.size(); }
+        unsigned int length() { return this->_totalFrames; }
 
-        std::pair<unsigned int,unsigned int> frame(int n) { return this->_frames[n]; }
-        std::vector<std::pair<unsigned int,unsigned int>> *frames() { return &this->_frames; }
+        std::pair<unsigned int,unsigned int> frame(int n) {
+            if(n<0) n = 0;
+            else if(n>=this->_totalFrames) n = this->_totalFrames-1;
+            return this->_frames[n];
+        }
     
         NSData *get(off_t offset, size_t bytes) {
-            void *data = malloc(bytes);
+            unsigned char *data = new unsigned char[bytes];
             fseeko(this->_fp,offset,SEEK_SET);
             fread(data,1,bytes,this->_fp);
             NSData *buffer = [NSData dataWithBytesNoCopy:data length:bytes];
-            free(data);
+            delete[] data;
             return buffer;
         }
     
         NSData *get(unsigned long n) {
-            if(n<this->_frames.size()) {
+            if(n<this->_totalFrames) {
                 return this->get(this->_frames[n].first,this->_frames[n].second);
             }
             return nil;
@@ -448,23 +452,22 @@ class QTSequenceParser {
         void parse(FILE *fp,std::string key) {
             
             this->_fp = fp;
-            
             if(fp!=NULL){
                 
                 unsigned int type = this->atom(key);
                 
                 /*
                     fpos_t size = 0;
-                    fseek(fp,0,SEEK_END);
+                    fseeko(fp,0,SEEK_END);
                     fgetpos(fp,&size);
                     NSLog(@"%lld",size);
                 */
                 
                 unsigned int buffer;
                 fseeko(fp,4*7,SEEK_SET);
-                fread(&buffer,sizeof(unsigned int),1,fp);
+                fread(&buffer,sizeof(unsigned int),1,fp); // 4*7
                 unsigned int offset = this->swapU32(buffer);
-                fread(&buffer,sizeof(unsigned int),1,fp);
+                fread(&buffer,sizeof(unsigned int),1,fp); // 4*8
                 if(this->swapU32(buffer)==this->atom("mdat")) {
                     
                     fseeko(fp,(4*8)+offset-4,SEEK_SET);
@@ -479,7 +482,7 @@ class QTSequenceParser {
                         bool key = false;
                         int seek = ((4*4)+4+6+2+2+2+4+4+4);
                         
-                        for(int k=0; k<len-(seek+2*2); k++) {
+                        for(int k=0; k<(len-8)-(seek+2*2); k++) {
                             if(this->swapU32(*((unsigned int *)(moov+k)))==this->atom("stsd")) {
                                 if(this->swapU32(*((unsigned int *)(moov+k+(4*4))))==type) {
                                     this->_width = this->swapU16(*((unsigned short *)(moov+k+seek)));
@@ -491,11 +494,10 @@ class QTSequenceParser {
                         }
                         
                         if(key) {
-                           
                             unsigned int TimeScale = 0;
-                            for(int k=0; k<len-3; k++) {
+                            for(int k=0; k<(len-8)-3; k++) {
                                 if(this->swapU32(*((unsigned int *)(moov+k)))==atom("mvhd")) {
-                                    if(k+(4*5)<len) {
+                                    if(k+(4*4)<len) {
                                         TimeScale = this->swapU32(*((unsigned int *)(moov+k+(4*4))));
                                         break;
                                     }
@@ -503,10 +505,9 @@ class QTSequenceParser {
                             }
                             
                             if(TimeScale>0) {
-                                
-                                for(int k=0; k<len-3; k++) {
+                                for(int k=0; k<(len-8)-3; k++) {
                                     if(this->swapU32(*((unsigned int *)(moov+k)))==atom("stts")) {
-                                        if(k+(4*5)<len) {
+                                        if(k+(4*4)<len) {
                                             this->_FPS = TimeScale/(double)(swapU32(*((unsigned int *)(moov+k+(4*4)))));
                                             break;
                                         }
@@ -515,17 +516,21 @@ class QTSequenceParser {
                                 
                                 if(this->_FPS>0) {
                                     
-                                    for(int k=0; k<len-3; k++) {
+                                    for(int k=0; k<(len-8)-3; k++) {
                                         if(this->swapU32(*((unsigned int *)(moov+k)))==atom("stsz")) {
                                             k+=(4*3);
-                                            if(k<len) {
-                                                int seek = 4*9;
-                                                int frames = this->swapU32(*((unsigned int *)(moov+k)));
-                                                for(int f=0; f<frames; f++) {
+                                            if(k<(len-8)) {
+                                                unsigned int chunk = 4*9;
+                                                this->_totalFrames = this->swapU32(*((unsigned int *)(moov+k)));
+                                                if(this->_frames) delete[] this->_frames;
+                                                this->_frames = new std::pair<unsigned int,unsigned int>[this->_totalFrames];
+                                                for(int f=0; f<this->_totalFrames; f++) {
                                                     k+=4;
-                                                    int size = this->swapU32(*((unsigned int *)(moov+k)));
-                                                    this->_frames.push_back(std::make_pair(seek,size));
-                                                    seek+=size;
+                                                    if(k<(len-8)) {
+                                                        unsigned int size = this->swapU32(*((unsigned int *)(moov+k)));
+                                                        this->_frames[f] = std::make_pair(chunk,size);
+                                                        chunk+=size;
+                                                    }
                                                 }
                                                 break;
                                             }
@@ -536,7 +541,6 @@ class QTSequenceParser {
                         }
                         
                         delete[] moov;
-                        
                     }
                 }
             }
@@ -554,7 +558,8 @@ class QTSequenceParser {
     
         ~QTSequenceParser() {
             this->_fp = NULL;
-            this->_frames.clear();
+            delete[] this->_frames;
+            
         }
 };
 
