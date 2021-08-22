@@ -5,7 +5,14 @@ Dependency on [facebook](https://github.com/facebook)/[zstd](https://github.com/
 Apply zstd compression after PNG-like Sub filtering process.    
 Full HD Realtime encoding in lossless format (ARGB) is fast enough on M1 MacBook Air.
 
+
 ### Encoding to zpng sequence
+
+```
+#import "zstd.h"
+#import "Filter.h"
+#import "QTZPNG.h"
+```
 
 ```
 ABGRFilter *filter = new ABGRFilter(w,h);
@@ -43,7 +50,7 @@ filter->add(src);
 int len = 0;
 unsigned char *png = stbi_write_png_to_mem((const unsigned char *)src,w<<2,w,h,4,&len);
 QTPNGRecorder *recorder = new QTPNGRecorder(w,h,30,@"./png.mov");
-ecorder->add(png,len);
+recorder->add(png,len);
 recorder->save();
 ```
 
