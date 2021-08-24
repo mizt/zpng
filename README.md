@@ -52,6 +52,16 @@ recorder->save();
 Support for decoding via emscripten.    
 [https://github.com/mizt/zpng/tree/master/emscripten/](https://github.com/mizt/zpng/tree/master/emscripten/)
 
+### Quick Look
+
+[https://github.com/mizt/zpng/tree/master/QuickLook/](https://github.com/mizt/zpng/tree/master/QuickLook/)
+
+```
+mdls test.zpng
+```
+
+Copy `kMDItemContentType` value  to `QLSupportedContentTypes` in Info.plist
+
 ### Premiere Pro importers
 
 See aloso  [https://github.com/fnordware/AdobeOgg/tree/theora/](https://github.com/fnordware/AdobeOgg/tree/theora/)
