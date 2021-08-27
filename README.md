@@ -71,11 +71,12 @@ Copy `kMDItemContentType` value  to `QLSupportedContentTypes` in Info.plist
 
 ### Premiere Pro importers
 
+`/Library/Application\ Support/Adobe/Common/Plug-ins/7.0/MediaCore/zpng_File_Import.bundle`
+
 See aloso  [https://github.com/fnordware/AdobeOgg/tree/theora/](https://github.com/fnordware/AdobeOgg/tree/theora/)
 
 Directly import in After Effects via Premiere Pro Importer.    
 [https://github.com/mizt/zpng/tree/master/premiere/](https://github.com/mizt/zpng/tree/master/premiere/)
-
 
 File Extension is 'zpng'.
 
@@ -91,7 +92,6 @@ resource 'IMPT' (1000)
     0x7A706E67 // 'zpng'
 };
 ```
-
 
 ### Similar project
 
