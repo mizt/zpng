@@ -95,6 +95,10 @@ resource 'IMPT' (1000)
 };
 ```
 
+### Decoding corrupted data example
+
+[https://mizt.github.io/zpng/err/](https://mizt.github.io/zpng/err/)
+
 ### Similar project
 
 [catid](https://github.com/catid)/[Zpng](https://github.com/catid/Zpng)
