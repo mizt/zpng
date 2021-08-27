@@ -61,6 +61,8 @@ Support for decoding via emscripten.
 
 ### Quick Look
 
+File Extension is 'zpng'.
+
 [https://github.com/mizt/zpng/tree/master/QuickLook/](https://github.com/mizt/zpng/tree/master/QuickLook/)
 
 ```
