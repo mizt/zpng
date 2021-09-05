@@ -14,9 +14,10 @@ class VideoRecorder {
         unsigned int _length = 0;
         std::vector<unsigned int> _frames;
 
-        unsigned int _width = 1920;
-        unsigned int _height = 1080;
+        unsigned short _width = 1920;
+        unsigned short _height = 1080;
         double _FPS = 30;
+        unsigned short _depth = 32; // or 24
     
         NSString *filename() {
             long unixtime = (CFAbsoluteTimeGetCurrent()+kCFAbsoluteTimeIntervalSince1970)*1000;
@@ -56,10 +57,11 @@ class VideoRecorder {
     
         int width()  { return this->_width; }
         int height() { return this->_height; }
-        VideoRecorder(int w,int h,int FPS=30,NSString *fileName=nil) {
+        VideoRecorder(unsigned short w, unsigned short h, unsigned short FPS=30, unsigned short depth=32, NSString *fileName=nil) {
             this->_width  = w;
             this->_height = h;
             this->_FPS = FPS;
+            this->_depth = depth;
             if(fileName) this->_fileName = fileName;
         }
         virtual void add(unsigned int *data,int length) {}
@@ -148,7 +150,7 @@ class QTSequenceRecorder : public VideoRecorder {
 
     public:
     
-        QTSequenceRecorder(std::string type,int w=1920,int h=1080,int FPS=30,NSString *fileName=nil) : VideoRecorder(w,h,FPS,fileName)  {
+        QTSequenceRecorder(std::string type,unsigned short w=1920,unsigned short h=1080,unsigned short FPS=30,unsigned short depth=32,NSString *fileName=nil) : VideoRecorder(w,h,FPS,depth,fileName)  {
             this->_type = type;
             if(this->_fileName==nil) this->_fileName = [NSString stringWithFormat:@"%@.mov",this->filename()];;
             NSMutableData *bin = [[NSMutableData alloc] init];
@@ -315,8 +317,8 @@ class QTSequenceRecorder : public VideoRecorder {
                 this->setU32(bin,72<<16); // Vertical resolution
                 [bin appendBytes:new unsigned int[1]{0} length:4];
                 this->setU16(bin,1); // Frame count
-                this->setCompressorName(bin,"'"+this->_type+"'");
-                this->setU16(bin,32); // Depth
+                this->setCompressorName(bin,"'"+this->_type+"'"); // 32
+                this->setU16(bin,this->_depth); // Depth
                 this->setU16(bin,0xFFFF); // Color table ID
                 this->initAtom(bin,"colr",18);
                 this->setString(bin,"nclc");
@@ -381,15 +383,15 @@ class QTSequenceRecorder : public VideoRecorder {
 
 class QTPNGRecorder : public QTSequenceRecorder {
     public:
-        QTPNGRecorder(int w=1920,int h=1080,int FPS=30,NSString *fileName=nil) : QTSequenceRecorder("png ",w,h,FPS,fileName) {}
-        QTPNGRecorder(NSString *fileName) : QTSequenceRecorder("png ",1920,1080,30,fileName) {}
+        QTPNGRecorder(unsigned short w=1920,unsigned short h=1080,unsigned short FPS=30,unsigned short depth=32,NSString *fileName=nil) : QTSequenceRecorder("png ",w,h,FPS,depth,fileName) {}
+        QTPNGRecorder(NSString *fileName) : QTSequenceRecorder("png ",1920,1080,30,32,fileName) {}
         ~QTPNGRecorder() {}
 };
 
 class QTZPNGRecorder : public QTSequenceRecorder {
     public:
-        QTZPNGRecorder(int w=1920,int h=1080,int FPS=30,NSString *fileName=nil) : QTSequenceRecorder("zpng",w,h,FPS,fileName) {}
-        QTZPNGRecorder(NSString *fileName) : QTSequenceRecorder("zpng",1920,1080,30,fileName) {}
+        QTZPNGRecorder(unsigned short w=1920,unsigned short h=1080,unsigned short FPS=30,unsigned short depth=32,NSString *fileName=nil) : QTSequenceRecorder("zpng",w,h,FPS,depth,fileName) {}
+        QTZPNGRecorder(NSString *fileName) : QTSequenceRecorder("zpng",1920,1080,30,32,fileName) {}
         ~QTZPNGRecorder() {}
 };
 
@@ -399,9 +401,10 @@ class QTSequenceParser {
     
         FILE *_fp;
 
-        unsigned int _width = 0;
-        unsigned int _height = 0;
+        unsigned short _width = 0;
+        unsigned short _height = 0;
         double _FPS = 0;
+        unsigned short _depth = 0;
     
         unsigned int _totalFrames = 0;
         std::pair<unsigned int,unsigned int> *_frames = nullptr;
@@ -416,9 +419,10 @@ class QTSequenceParser {
     
     public:
     
-        unsigned int width() { return this->_width; }
-        unsigned int height() { return this->_height; }
+        unsigned short width() { return this->_width; }
+        unsigned short height() { return this->_height; }
         double FPS() { return this->_FPS; }
+        unsigned short depth() { return this->_depth; }
         unsigned int length() { return this->_totalFrames; }
 
         std::pair<unsigned int,unsigned int> frame(int n) {
@@ -476,17 +480,17 @@ class QTSequenceParser {
                     fread(&buffer,sizeof(unsigned int),1,fp);
                     if(this->swapU32(buffer)==atom("moov")) {
                         
-                        //NSLog(@"%d",len);
                         unsigned char *moov = new unsigned char[len-8];
                         fread(moov,sizeof(unsigned char),len-8,fp);
                         bool key = false;
                         int seek = ((4*4)+4+6+2+2+2+4+4+4);
                         
-                        for(int k=0; k<(len-8)-(seek+2*2); k++) {
+                        for(int k=0; k<(len-8)-(seek+2*2+4+4+4+2+32+2); k++) {
                             if(this->swapU32(*((unsigned int *)(moov+k)))==this->atom("stsd")) {
                                 if(this->swapU32(*((unsigned int *)(moov+k+(4*4))))==type) {
                                     this->_width = this->swapU16(*((unsigned short *)(moov+k+seek)));
                                     this->_height = this->swapU16(*((unsigned short *)(moov+k+seek+2)));
+                                    this->_depth = this->swapU16(*((unsigned short *)(moov+k+seek+2+4+4+4+2+32+2)));
                                     if(this->_width>0&&this->_height>0) key = true;
                                     break;
                                 }
@@ -515,7 +519,6 @@ class QTSequenceParser {
                                 }
                                 
                                 if(this->_FPS>0) {
-                                    
                                     for(int k=0; k<(len-8)-3; k++) {
                                         if(this->swapU32(*((unsigned int *)(moov+k)))==atom("stsz")) {
                                             k+=(4*3);
