@@ -2,16 +2,6 @@ class Filter {
   
     protected:
     
-        NSString *FILTER[5] = {
-            @"None",
-            @"Sub",
-            @"Up",
-            @"Average",
-            @"Paeth"
-        };
-
-        bool _subtractGreen = true;
-    
         unsigned int _width;
         unsigned int _height;
         unsigned int _bpp;
@@ -19,7 +9,7 @@ class Filter {
         unsigned char *_bytes = nullptr;
         unsigned int _length = 0;
     
-        unsigned char black[4] = {0,0,0,0};
+        unsigned char _black[4] = {0,0,0,0};
     
         unsigned char *_filters[5] = {nullptr,nullptr,nullptr,nullptr,nullptr};
 
@@ -43,8 +33,7 @@ class Filter {
         unsigned char *bytes() { return this->_bytes; }
         unsigned int length() { return this->_length; }
     
-        Filter(unsigned int w,unsigned int h,unsigned int ch, int subtractGreen=false) {
-            this->_subtractGreen = subtractGreen;
+        Filter(unsigned int w,unsigned int h,unsigned int ch) {
             this->_width = w;
             this->_height = h;
             this->_bpp = ch;
@@ -58,19 +47,6 @@ class Filter {
             this->_length = this->_height*(this->_width+1)*this->_bpp;
             
             unsigned int src_row = this->_width*ch;
-            
-            if(this->_subtractGreen) {
-                for(int i=0; i<this->_height; i++) {
-                    unsigned char *pixel = buffer+i*src_row;
-                    for(int j=0; j<this->_width; j++) {
-                        unsigned char g = *(pixel+1);
-                        *(pixel) = (*(pixel)-g)&0xFF;
-                        *(pixel+2) = (*(pixel+2)-g)&0xFF;
-                        pixel+=this->_bpp;
-                    }
-                }
-            }
-            
             unsigned int dst_row = this->_width*this->_bpp;
             
             int num = (this->_bpp>ch)?ch:this->_bpp;
@@ -84,36 +60,36 @@ class Filter {
                 
                 if(_filter==1) {
                     for(int j=0; j<this->_width; j++) {
-                        unsigned char *W = (j==0)?black:buffer+i*src_row+(j-1)*ch;
+                        unsigned char *W = (j==0)?this->_black:buffer+i*src_row+(j-1)*ch;
                         for(int n=0; n<num; n++) *dst++ = ((*src++)-(*W++))&0xFF;
                     }
                 }
                 else if(_filter==2) {
                     for(int j=0; j<this->_width; j++) {
-                        unsigned char *N = (i==0)?black:buffer+(i-1)*src_row+j*ch;
+                        unsigned char *N = (i==0)?this->_black:buffer+(i-1)*src_row+j*ch;
                         for(int n=0; n<num; n++) *dst++ = ((*src++)-(*N++))&0xFF;
                     }
                 }
                 else if(_filter==3) {
                     for(int j=0; j<this->_width; j++) {
-                        unsigned char *W = (j==0)?black:buffer+i*src_row+(j-1)*ch;
-                        unsigned char *N = (i==0)?black:buffer+(i-1)*src_row+j*ch;
+                        unsigned char *W = (j==0)?this->_black:buffer+i*src_row+(j-1)*ch;
+                        unsigned char *N = (i==0)?this->_black:buffer+(i-1)*src_row+j*ch;
                         for(int n=0; n<num; n++) *dst++ = ((*src++)-(((*W++)+(*N++))>>1))&0xFF;
                     }
                 }
                 else if(_filter==4) {
                     for(int j=0; j<this->_width; j++) {
-                        unsigned char *W = (j==0)?black:buffer+i*src_row+(j-1)*ch;
-                        unsigned char *N = (i==0)?black:buffer+(i-1)*src_row+j*ch;
-                        unsigned char *NW = (i==0||j==0)?black:buffer+(i-1)*src_row+(j-1)*ch;
+                        unsigned char *W = (j==0)?this->_black:buffer+i*src_row+(j-1)*ch;
+                        unsigned char *N = (i==0)?this->_black:buffer+(i-1)*src_row+j*ch;
+                        unsigned char *NW = (i==0||j==0)?this->_black:buffer+(i-1)*src_row+(j-1)*ch;
                         for(int n=0; n<num; n++) *dst++ = ((*src++)-predictor((*W++),(*N++),(*NW++)))&0xFF;
                     }
                 }
                 else if(_filter==5) {
                     for(int j=0; j<this->_width; j++) {
-                        unsigned char *W = (j==0)?black:buffer+i*src_row+(j-1)*ch;
-                        unsigned char *N = (i==0)?black:buffer+(i-1)*src_row+j*ch;
-                        unsigned char *NW = (i==0||j==0)?black:buffer+(i-1)*src_row+(j-1)*ch;
+                        unsigned char *W = (j==0)?this->_black:buffer+i*src_row+(j-1)*ch;
+                        unsigned char *N = (i==0)?this->_black:buffer+(i-1)*src_row+j*ch;
+                        unsigned char *NW = (i==0||j==0)?this->_black:buffer+(i-1)*src_row+(j-1)*ch;
                         for(int n=0; n<num; n++) {
                             this->_filters[1][j*this->_bpp+n] = (*src-*W)&0xFF;
                             this->_filters[2][j*this->_bpp+n] = (*src-*N)&0xFF;
@@ -143,7 +119,6 @@ class Filter {
                         }
                     }
                     _filter = best_filter[INDEX];
-                    //NSLog(@"%@",FILTER[_filter]);
                     
                     for(int j=0; j<this->_width; j++) {
                         for(int n=0; n<num; n++) {
@@ -161,11 +136,6 @@ class Filter {
                 else if(this->_bpp>ch) *dst++ = 0xFF;
             
                 this->_bytes[i*(this->_width*this->_bpp+1)+0] = _filter;
-        
-            
-                if(this->_subtractGreen) {
-                
-                }
             }
         }
         
@@ -184,31 +154,32 @@ class Filter {
                 unsigned char *dst = this->_bytes+i*dst_row;
 
                 unsigned int filter = *src++;
-                 
+                if(filter>=6) return;
+                
                 if(filter==1) {
                     for(int j=0; j<this->_width; j++) {
-                        unsigned char *W = (j==0)?black:this->_bytes+i*dst_row+(j-1)*this->_bpp;
+                        unsigned char *W = (j==0)?this->_black:this->_bytes+i*dst_row+(j-1)*this->_bpp;
                         for(int n=0; n<num; n++) *dst++ = ((*src++)+(*W++))&0xFF;
                     }
                 }
                 else if(filter==2) {
                     for(int j=0; j<this->_width; j++) {
-                        unsigned char *N = (i==0)?black:this->_bytes+(i-1)*dst_row+j*this->_bpp;
+                        unsigned char *N = (i==0)?this->_black:this->_bytes+(i-1)*dst_row+j*this->_bpp;
                         for(int n=0; n<num; n++) *dst++ = ((*src++)+(*N++))&0xFF;
                     }
                 }
                 else if(filter==3) {
                     for(int j=0; j<this->_width; j++) {
-                        unsigned char *W = (j==0)?black:this->_bytes+i*dst_row+(j-1)*this->_bpp;
-                        unsigned char *N = (i==0)?black:this->_bytes+(i-1)*dst_row+j*this->_bpp;
+                        unsigned char *W = (j==0)?this->_black:this->_bytes+i*dst_row+(j-1)*this->_bpp;
+                        unsigned char *N = (i==0)?this->_black:this->_bytes+(i-1)*dst_row+j*this->_bpp;
                         for(int n=0; n<num; n++) *dst++ = ((*src++)+(((*W++)+(*N++))>>1))&0xFF;
                     }
                 }
                 else if(filter==4) {
                     for(int j=0; j<this->_width; j++) {
-                        unsigned char *W = (j==0)?black:this->_bytes+i*dst_row+(j-1)*this->_bpp;
-                        unsigned char *N = (i==0)?black:this->_bytes+(i-1)*dst_row+j*this->_bpp;
-                        unsigned char *NW = (i==0||j==0)?black:this->_bytes+(i-1)*dst_row+(j-1)*this->_bpp;
+                        unsigned char *W = (j==0)?this->_black:this->_bytes+i*dst_row+(j-1)*this->_bpp;
+                        unsigned char *N = (i==0)?this->_black:this->_bytes+(i-1)*dst_row+j*this->_bpp;
+                        unsigned char *NW = (i==0||j==0)?this->_black:this->_bytes+(i-1)*dst_row+(j-1)*this->_bpp;
                         for(int n=0; n<num; n++) *dst++ = ((*src++)+predictor((*W++),(*N++),(*NW++)))&0xFF;
                     }
                 }
@@ -220,21 +191,6 @@ class Filter {
                 
                 if(this->_bpp<ch) src++;
                 else if(this->_bpp>ch) *dst++ = 0xFF;
-            }
-            
-            if(this->_subtractGreen) {
-                if(this->_subtractGreen) {
-                    for(int i=0; i<this->_height; i++) {
-                        unsigned char *pixel = this->_bytes+i*src_row;
-                        for(int j=0; j<this->_width; j++) {
-                            unsigned char g = *(pixel+1);
-                            *(pixel) = (*(pixel)+g)&0xFF;
-                            *(pixel+2) = (*(pixel+2)+g)&0xFF;
-                            pixel+=this->_bpp;
-                        }
-                    }
-                }
-                
             }
         }
         
