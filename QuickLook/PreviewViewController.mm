@@ -16,12 +16,14 @@ namespace zpng {
     dispatch_source_t timer = nullptr;
 
     int frames = 0;
+
+    NSURL *url;
     FILE *fp = nullptr;
 
-    unsigned int *buffer;
-    unsigned int *src;
+    unsigned char *buffer;
+    unsigned char *src;
 
-    SubtractGreenFilter *filter = nullptr;
+    Filter::Decoder *decoder = nullptr;
     QTZPNGParser *parser = nullptr;
 
     void resrt() {
@@ -49,9 +51,9 @@ namespace zpng {
             img = nil;
         }
                 
-        if(filter) {
-            delete filter;
-            filter = nullptr;
+        if(decoder) {
+            delete decoder;
+            decoder = nullptr;
         }
         
         if(parser) {
@@ -70,6 +72,7 @@ namespace zpng {
         }
     }
 }
+
 
 @interface PreviewViewController : NSViewController<QLPreviewingController> @end
 @implementation PreviewViewController
@@ -92,7 +95,8 @@ namespace zpng {
     zpng::resrt();
     if(zpng::timer==nullptr) {
         
-        zpng::fp = fopen(url.fileSystemRepresentation,"rb");
+        zpng::url = url;
+        zpng::fp = fopen(zpng::url.fileSystemRepresentation,"rb");
         
         if(zpng::fp) {
             
@@ -101,10 +105,10 @@ namespace zpng {
             zpng::width = zpng::parser->width();
             zpng::height = zpng::parser->height();
             
-            zpng::buffer = new unsigned int[zpng::width*zpng::height];
-            zpng::src = new unsigned int[zpng::width*zpng::height];
+            zpng::buffer = new unsigned char[zpng::width*zpng::height*4+zpng::height];
+            zpng::src = new unsigned char[zpng::width*zpng::height*4];
 
-            zpng::filter = new SubtractGreenFilter(zpng::width,zpng::height);
+            zpng::decoder = new Filter::Decoder(zpng::width,zpng::height,4);
 
             zpng::view = [[NSImageView alloc] initWithFrame:CGRectMake(0,0,self.view.frame.size.width,self.view.frame.size.height)];
 
@@ -121,24 +125,36 @@ namespace zpng {
             dispatch_source_set_event_handler(zpng::timer,^{
                 dispatch_async(dispatch_get_main_queue(),^{
                     if(zpng::view) {
-                                            
-                        zpng::frames++;
-                        if(zpng::frames>=zpng::parser->length()) {
-                            zpng::frames=0;
+                                 
+                        if(zpng::parser->length()>=1) {
+                            
+                            std::pair<unsigned int,unsigned int> data = zpng::parser->frame(zpng::frames);
+
+                            fseeko(zpng::fp,data.first,SEEK_SET);
+                            fread(zpng::buffer,sizeof(unsigned char),data.second,zpng::fp);
+                            ZSTD_decompress(zpng::src,(zpng::width*zpng::height+zpng::height)*4,zpng::buffer,data.second);
+                            zpng::decoder->decode(zpng::src,zpng::parser->depth()>>3);
+                            
+                            for(int i=0; i<zpng::height; i++) {
+                                unsigned int *src = (unsigned int *)(zpng::decoder->bytes()+i*zpng::width*4);
+                                unsigned int *dst = ((unsigned int *)[zpng::bmp bitmapData]+i*([zpng::bmp bytesPerRow]>>2));
+                                for(int j=0; j<zpng::width; j++) {
+                                    *dst++ =  *src++;
+                                }
+                            }
+                            
+                            zpng::frames++;
+                            if(zpng::frames>=zpng::parser->length()) {
+                                zpng::frames=0;
+                            }
+                            
                         }
-                        
-                        std::pair<unsigned int,unsigned int> data = zpng::parser->frame(zpng::frames);
-                        
-                        fseeko(zpng::fp,data.first,SEEK_SET);
-                        fread(zpng::buffer,sizeof(unsigned char),data.second,zpng::fp);
-                        ZSTD_decompress(zpng::src,(zpng::width*zpng::height)<<2,zpng::buffer,data.second);
-                        zpng::filter->add(zpng::src);
-                        
-                        for(int i=0; i<zpng::height; i++) {
-                            unsigned int *src = zpng::src+i*zpng::width;//*3;
-                            unsigned int *dst = ((unsigned int *)[zpng::bmp bitmapData]+i*([zpng::bmp bytesPerRow]>>2));
-                            for(int j=0; j<zpng::width; j++) {
-                                *dst++ = *src++;
+                        else {
+                            for(int i=0; i<zpng::height; i++) {
+                                unsigned int *dst = ((unsigned int *)[zpng::bmp bitmapData]+i*([zpng::bmp bytesPerRow]>>2));
+                                for(int j=0; j<zpng::width; j++) {
+                                    *dst++ = 0xFFFF0000;
+                                }
                             }
                         }
                         
