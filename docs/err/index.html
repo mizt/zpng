@@ -23,6 +23,7 @@
                 z-index:1024;
                 width:0px;
                 height:4px;
+                background-color:#000;
             }
         
             canvas {
@@ -45,7 +46,7 @@
             const xhr = new XMLHttpRequest();
             
             const progress = document.getElementById("progress");
-                      
+            
             xhr.addEventListener("progress",function(e) {
                 if(e.loaded&&e.total) {
                     progress.style.width = (((e.loaded/e.total)*1279)>>0)+"px";
