@@ -4,75 +4,179 @@
 #import "QTZPNG.h"
 #import <zstd.h>
 
-namespace zpng {
-
-    int width = 0;
-    int height = 0;
+class PreviewItem {
     
-    NSImageView *view = nil;
-    NSImage *img;
-    NSBitmapImageRep *bmp;
-
-    dispatch_source_t timer = nullptr;
-
-    int frames = 0;
-
-    NSURL *url;
-    FILE *fp = nullptr;
-
-    unsigned char *buffer;
-    unsigned char *src;
-
-    Filter::Decoder *decoder = nullptr;
-    QTZPNGParser *parser = nullptr;
-
-    void resrt() {
+    private:
         
-        if(fp) {
-            fclose(fp);
-            fp = nullptr;
-        }
+        int width = 0;
+        int height = 0;
         
-        if(timer){
-            dispatch_source_cancel(timer);
-            timer = nullptr;
-        }
+        NSImageView *view = nil;
+        NSImage *img;
+        NSBitmapImageRep *bmp;
+
+        dispatch_source_t timer = nullptr;
+
+        int frames = 0;
+
+        NSURL *url;
+        FILE *fp = nullptr;
+
+        unsigned char *buffer;
+        unsigned char *src;
+
+        Filter::Decoder *decoder = nullptr;
+        QTZPNGParser *parser = nullptr;
+      
+    public:
         
-        if(view) {
-            [view removeFromSuperview];
-            view = nil;
-        }
-        
-        if(img) {
-            if(bmp) {
-                [img removeRepresentation:bmp];
-                bmp = nil;
-            }
-            img = nil;
-        }
+        PreviewItem(NSView *view,NSURL *url) {
+            
+            this->url = url;
+            this->fp = fopen(this->url.fileSystemRepresentation,"rb");
+            
+            if(this->fp) {
                 
-        if(decoder) {
-            delete decoder;
-            decoder = nullptr;
-        }
-        
-        if(parser) {
-            delete[] parser;
-            parser = nullptr;
-        }
-        
-        if(buffer) {
-            delete[] buffer;
-            buffer = nullptr;
-        }
-        
-        if(src) {
-            delete[] src;
-            src = nullptr;
-        }
-    }
-}
+                this->parser = new QTZPNGParser(this->fp);
+                
+                if(this->parser->length()>0&&this->parser->FPS()>0) {
+                    this->width = this->parser->width();
+                    this->height = this->parser->height();
+                    
+                    this->buffer = new unsigned char[this->width*this->height*4+this->height];
+                    this->src = new unsigned char[this->width*this->height*4];
 
+                    this->decoder = new Filter::Decoder(this->width,this->height,4);
+
+                    this->view = [[NSImageView alloc] initWithFrame:CGRectMake(0,0,view.frame.size.width,view.frame.size.height)];
+
+                    this->bmp = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL pixelsWide:this->width pixelsHigh:this->height bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO colorSpaceName:NSDeviceRGBColorSpace bitmapFormat:NSBitmapFormatAlphaNonpremultiplied bytesPerRow:NULL bitsPerPixel:NULL];
+                    this->img = [[NSImage alloc] initWithSize:NSMakeSize(this->width,this->height)];
+                    [this->img addRepresentation:this->bmp];
+                    [this->view setImage:this->img];
+                    [this->view setImageScaling:NSImageScaleProportionallyDown];
+                    [view addSubview:this->view];
+                    [this->view setAutoresizingMask:NSViewHeightSizable|NSViewWidthSizable];
+                    
+                    this->timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER,0,0,dispatch_queue_create("ENTER_FRAME",0));
+                   
+                    dispatch_source_set_timer(this->timer,dispatch_time(0,0),(1.0/(double)this->parser->FPS())*1000000000,0);
+                    dispatch_source_set_event_handler(this->timer,^{
+                        dispatch_async(dispatch_get_main_queue(),^{
+                                                       
+                            if(this->view) {
+                                         
+                                if(this->parser->length()>0) {
+                                    
+                                    FILE *fp = fopen(this->url.fileSystemRepresentation,"rb");
+                                    fpos_t size = 0;
+                                    fseeko(fp,0,SEEK_END);
+                                    fgetpos(fp,&size);
+                                    fclose(fp);
+                                    
+                                    if(size==this->parser->size()) {
+                                        
+                                        std::pair<unsigned int,unsigned int> data = this->parser->frame(this->frames);
+                                        fseeko(this->fp,data.first,SEEK_SET);
+                                        fread(this->buffer,sizeof(unsigned char),data.second,this->fp);
+                                        ZSTD_decompress(this->src,(this->width*this->height+this->height)*4,this->buffer,data.second);
+                                        this->decoder->decode(this->src,this->parser->depth()>>3);
+                                        
+                                        for(int i=0; i<this->height; i++) {
+                                            unsigned int *src = (unsigned int *)(this->decoder->bytes()+i*this->width*4);
+                                            unsigned int *dst = ((unsigned int *)[this->bmp bitmapData]+i*([this->bmp bytesPerRow]>>2));
+                                            for(int j=0; j<this->width; j++) {
+                                                *dst++ =  *src++;
+                                            }
+                                        }
+                                        
+                                        this->frames++;
+                                        if(this->frames>=this->parser->length()) {
+                                            this->frames=0;
+                                        }
+                                        
+                                    }
+                                    else {
+                                        for(int i=0; i<this->height; i++) {
+                                            unsigned int *dst = ((unsigned int *)[this->bmp bitmapData]+i*([this->bmp bytesPerRow]>>2));
+                                            for(int j=0; j<this->width; j++) {
+                                                *dst++ = 0xFFFF0000;
+                                            }
+                                        }
+                                    }
+                                    
+                                    [this->img addRepresentation:this->bmp];
+                                    [this->view display];
+                                }
+                                else {
+                                    
+                                    for(int i=0; i<this->height; i++) {
+                                        unsigned int *dst = ((unsigned int *)[this->bmp bitmapData]+i*([this->bmp bytesPerRow]>>2));
+                                        for(int j=0; j<this->width; j++) {
+                                            *dst++ = 0xFFFF0000;
+                                        }
+                                    }
+                                    
+                                    [this->img addRepresentation:this->bmp];
+                                    [this->view display];
+                                }
+                            }
+                          
+                        });
+                    });
+                    if(this->timer) dispatch_resume(this->timer);
+                }
+            }
+        }
+    
+        ~PreviewItem() {
+            
+            if(this->fp) {
+                fclose(this->fp);
+                this->fp = nullptr;
+            }
+            
+            if(this->timer) {
+                dispatch_source_cancel(this->timer);
+                this->timer = nullptr;
+            }
+            
+            if(this->view) {
+                [this->view removeFromSuperview];
+                this->view = nil;
+            }
+            
+            if(this->img) {
+                if(this->bmp) {
+                    [this->img removeRepresentation:this->bmp];
+                    this->bmp = nil;
+                }
+                this->img = nil;
+            }
+                    
+            if(this->decoder) {
+                delete this->decoder;
+                this->decoder = nullptr;
+            }
+            
+            if(this->parser) {
+                delete[] this->parser;
+                this->parser = nullptr;
+            }
+            
+            if(buffer) {
+                delete[] buffer;
+                buffer = nullptr;
+            }
+            
+            if(src) {
+                delete[] src;
+                src = nullptr;
+            }
+        }
+};
+
+std::vector<PreviewItem *> zpng;
 
 @interface PreviewViewController : NSViewController<QLPreviewingController> @end
 @implementation PreviewViewController
@@ -82,92 +186,22 @@ namespace zpng {
 }
 
 -(void)viewDidDisappear {
-    zpng::resrt();
+    
+    delete zpng[0];
+    zpng.erase(zpng.begin());
+
+    [super viewDidDisappear];
 }
 
 -(void)loadView {
     [super loadView];
-    zpng::resrt();
 }
 
 -(void)preparePreviewOfFileAtURL:(NSURL *)url completionHandler:(void (^)(NSError * _Nullable))handler {
     
-    zpng::resrt();
-    if(zpng::timer==nullptr) {
-        
-        zpng::url = url;
-        zpng::fp = fopen(zpng::url.fileSystemRepresentation,"rb");
-        
-        if(zpng::fp) {
-            
-            zpng::parser = new QTZPNGParser(zpng::fp);
-
-            zpng::width = zpng::parser->width();
-            zpng::height = zpng::parser->height();
-            
-            zpng::buffer = new unsigned char[zpng::width*zpng::height*4+zpng::height];
-            zpng::src = new unsigned char[zpng::width*zpng::height*4];
-
-            zpng::decoder = new Filter::Decoder(zpng::width,zpng::height,4);
-
-            zpng::view = [[NSImageView alloc] initWithFrame:CGRectMake(0,0,self.view.frame.size.width,self.view.frame.size.height)];
-
-            zpng::bmp = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL pixelsWide:zpng::width pixelsHigh:zpng::height bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO colorSpaceName:NSDeviceRGBColorSpace bitmapFormat:NSBitmapFormatAlphaNonpremultiplied bytesPerRow:NULL bitsPerPixel:NULL];
-            zpng::img = [[NSImage alloc] initWithSize:NSMakeSize(zpng::width,zpng::height)];
-            [zpng::img addRepresentation:zpng::bmp];
-            [zpng::view setImage:zpng::img];
-            [zpng::view setImageScaling:NSImageScaleProportionallyDown];
-            [self.view addSubview:zpng::view];
-            [zpng::view setAutoresizingMask:NSViewHeightSizable|NSViewWidthSizable];
-            
-            zpng::timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER,0,0,dispatch_queue_create("ENTER_FRAME",0));
-            dispatch_source_set_timer(zpng::timer,dispatch_time(0,0),(1.0/(double)zpng::parser->FPS())*1000000000,0);
-            dispatch_source_set_event_handler(zpng::timer,^{
-                dispatch_async(dispatch_get_main_queue(),^{
-                    if(zpng::view) {
-                                 
-                        if(zpng::parser->length()>=1) {
-                            
-                            std::pair<unsigned int,unsigned int> data = zpng::parser->frame(zpng::frames);
-
-                            fseeko(zpng::fp,data.first,SEEK_SET);
-                            fread(zpng::buffer,sizeof(unsigned char),data.second,zpng::fp);
-                            ZSTD_decompress(zpng::src,(zpng::width*zpng::height+zpng::height)*4,zpng::buffer,data.second);
-                            zpng::decoder->decode(zpng::src,zpng::parser->depth()>>3);
-                            
-                            for(int i=0; i<zpng::height; i++) {
-                                unsigned int *src = (unsigned int *)(zpng::decoder->bytes()+i*zpng::width*4);
-                                unsigned int *dst = ((unsigned int *)[zpng::bmp bitmapData]+i*([zpng::bmp bytesPerRow]>>2));
-                                for(int j=0; j<zpng::width; j++) {
-                                    *dst++ =  *src++;
-                                }
-                            }
-                            
-                            zpng::frames++;
-                            if(zpng::frames>=zpng::parser->length()) {
-                                zpng::frames=0;
-                            }
-                            
-                        }
-                        else {
-                            for(int i=0; i<zpng::height; i++) {
-                                unsigned int *dst = ((unsigned int *)[zpng::bmp bitmapData]+i*([zpng::bmp bytesPerRow]>>2));
-                                for(int j=0; j<zpng::width; j++) {
-                                    *dst++ = 0xFFFF0000;
-                                }
-                            }
-                        }
-                        
-                        [zpng::img addRepresentation:zpng::bmp];
-                        [zpng::view display];
-                        
-                    }
-                });
-            });
-            if(zpng::timer) dispatch_resume(zpng::timer);
-        }
-    }
- 
+    PreviewItem *item = new PreviewItem(self.view,url);
+    zpng.push_back(item);
+    
     handler(nil);
 }
 
