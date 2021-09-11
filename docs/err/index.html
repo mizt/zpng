@@ -2,7 +2,7 @@
 <html>
 	<head>
 		<meta charset="UTF-8">
-		<title>zpng/err</title>
+		<title>zpng</title>
         <meta name="viewport" content="initial-scale=1.0,maximum-scale=1.0">
         <style>
                 
@@ -23,6 +23,9 @@
                 z-index:1024;
                 width:0px;
                 height:4px;
+            }
+        
+            canvas {
                 background:#000;
             }
         
@@ -30,10 +33,9 @@
         <script src="./decode.js"></script>
 	</head>
 	<body>
-        <div id="progress"></div>
         <script>
             
-            const path = "./test.mov";
+            const path = "./duster.zpng";
             
             const U32 = function(u8,addr) { return u8[addr]<<24|u8[addr+1]<<16|u8[addr+2]<<8|u8[addr+3]; }
             const U16 = function(u8,addr) { return u8[addr]<<8|u8[addr+1]; }
@@ -42,22 +44,21 @@
             const xhr = new XMLHttpRequest();
             
             const progress = document.getElementById("progress");
-            
+                      
             xhr.addEventListener("progress",function(e) {
                 if(e.loaded&&e.total) {
                     progress.style.width = (((e.loaded/e.total)*1279)>>0)+"px";
                 }
             });
-        
-            xhr.addEventListener("load",function(e) {
-               
-                progress.style.display = "none";
+                  
+            xhr.addEventListener("load",function() {
                
                 const bin = new Uint8Array(this.response);
                 let list = [];
                 
                 let w = 0;
                 let h = 0;
+                let depth = 0;
                 let timeScale = 0;
                 let FPS = 0;
                 
@@ -75,6 +76,11 @@
                                     k+=2;
                                     h = U16(moov,k);
                                     k+=2;
+                                }
+                                k+=4+4+4+2+32;
+                                if(k<moov_size-3) {
+                                    depth = U16(moov,k)>>3;
+                                    console.log(depth);
                                 }
                             }
                         }
@@ -99,6 +105,7 @@
                             let seek = 4*9;
                             const frames = U32(moov,k);
                             k+=4;
+                            console.log("frames",frames);
                             for(let f=0; f<frames; f++) {
                                 if(k<moov_size-3) {
                                     const size = U32(moov,k);
@@ -111,7 +118,10 @@
                     }
                 }
                 
-                if(w>0&&h>0&&timeScale&&FPS) {
+                if(w>0&&h>0&&(depth==3||depth==4)&&timeScale&&FPS) {
+                    
+                    console.log(w,h);
+                    
                     const canvas = document.createElement("canvas");
                     canvas.width = w;
                     canvas.height = h;
@@ -122,21 +132,19 @@
                     let imageData = ctx.getImageData(0,0,w,h);
                     
                     const size = (w*h)<<2;
-                    let src = new Uint8Array(Module.HEAPU8.buffer,Module._malloc(size),size);
+                    let src = new Uint8Array(Module.HEAPU8.buffer,Module._malloc(size+h),size+h);
                     let dst = new Uint8Array(Module.HEAPU8.buffer,Module._malloc(size),size);
-                    let decode = Module.cwrap("decode","void",["number","number","number","number","number"]);
+                    let decode = Module.cwrap("decode","void",["number","number","number","number","number","number"]);
                     
                     let frame = 0;
                     setInterval(function() {
                        const seek = list[frame][0];
                        const length = list[frame][1];
                        for(let k=0; k<length; k++) src[k] = bin[seek+k];
-                       let len = (0.25+Math.round(Math.random()*2.5)>>0);
-                       while(len) {
-                           src[(Math.random()*length)>>0] = (Math.random()*0x100)>>0;
-                           len--;
-                       }
-                       decode(dst.byteOffset,w,h,src.byteOffset,length);
+                       
+                       src[(Math.random()*length)>>0] = (Math.random()*0x100)>>0;
+                       
+                       decode(dst.byteOffset,w,h,depth,src.byteOffset,length);
                        imageData.data.set(dst);
                        ctx.putImageData(imageData,0,0);
                        frame++;
