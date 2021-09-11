@@ -17,7 +17,7 @@ Full HD Realtime encoding in lossless format (ARGB) is fast enough on M1 MacBook
 ```
 Filter::Encoder *encoder = new Filter::Encoder(w,h,Filter::RGBA);
 encoder->encode(src,Filter::ARGB,5);
-size_t len = ZSTD_compress(dst,(w*h)*Filter::ARGB,src,(w*h)*Filter::RGB,1);
+size_t len = ZSTD_compress(dst,w*h*encoder->bpp(),encoder->bytes(),encoder->length(),1);
 QTZPNGRecorder *recorder = new QTZPNGRecorder(w,h,30,@"./zpng.mov");
 recorder->add((unsigned char *)dst,len);
 recorder->save();
@@ -42,13 +42,12 @@ Using [stb_image_write](https://github.com/nothings/stb/blob/master/stb_image_wr
 QTZPNGParser *parser = new QTZPNGParser(@"./zpng.mov");
 NSData *zpng = parser->get(0);
 ZSTD_decompress(src,(w*h)<<2,[zpng bytes],[zpng length]);
-
-ABGRFilter *filter = new ABGRFilter(w,h);
-filter->add(src);
-
-int len = 0;
-unsigned char *png = stbi_write_png_to_mem((const unsigned char *)src,w<<2,w,h,4,&len);
-QTPNGRecorder *recorder = new QTPNGRecorder(w,h,30,@"./png.mov");
+Filter::Decoder *decoder = new Filter::Decoder(w,h,Filter::RGB);
+unsigned int bpp = parser->depth()>>3;
+decoder->decode((unsigned char *)src,bpp);
+int len = 0;    
+unsigned char *png = stbi_write_png_to_mem((const unsigned char *)decoder->bytes(),w*bpp,w,h,bpp,&len);
+QTPNGRecorder *recorder = new QTPNGRecorder(w,h,30,parser->depth(),@"./png.mov");
 recorder->add(png,len);
 recorder->save();
 ```
