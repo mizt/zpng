@@ -15,8 +15,8 @@ Full HD Realtime encoding in lossless format (ARGB) is fast enough on M1 MacBook
 ```
 
 ```
-Filter *filter = new Filter(w,h,Filter::RGB,false);
-filter->encode(src,Filter::ARGB,5);
+Filter::Encoder *encoder = new Filter::Encoder(w,h,Filter::RGBA);
+encoder->encode(src,Filter::ARGB,5);
 size_t len = ZSTD_compress(dst,(w*h)*Filter::ARGB,src,(w*h)*Filter::RGB,1);
 QTZPNGRecorder *recorder = new QTZPNGRecorder(w,h,30,@"./zpng.mov");
 recorder->add((unsigned char *)dst,len);
@@ -27,9 +27,10 @@ recorder->save();
 ```
 QTZPNGParser *parser = new QTZPNGParser(@"./zpng.mov");
 NSData *zpng = parser->get(0);
-ZSTD_decompress(src,(w*h)*Filter::ARGB,[zpng bytes],[zpng length]);
+ZSTD_decompress(src,(w*h)*Filter::RGBA,[zpng bytes],[zpng length]);
 Filter *filter = new Filter(w,h,Filter::RGB,false);
-filter->decode(src,Filter::ARGB);
+Filter::Decoder *decoder = new Filter::Decoder(w,h,Filter::RGBA);
+decoder->decode(src,Filter::ARGB);
 ```
 
 ### Converting to QuickTime PNG sequence
