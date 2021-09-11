@@ -2,7 +2,7 @@
 <html>
 	<head>
 		<meta charset="UTF-8">
-		<title>zpng decoding</title>
+		<title>zpng</title>
         <meta name="viewport" content="initial-scale=1.0,maximum-scale=1.0">
         <style>
                 
@@ -15,6 +15,10 @@
                 background:#808080;
                 overflow:hidden;
             }
+            
+            canvas {
+                background:#000;
+            }
         
         </style>
         <script src="./decode.js"></script>
@@ -22,20 +26,21 @@
 	<body>
         <script>
             
-            const path = "./test.mov";
+            const path = "./duster.zpng";
             
             const U32 = function(u8,addr) { return u8[addr]<<24|u8[addr+1]<<16|u8[addr+2]<<8|u8[addr+3]; }
             const U16 = function(u8,addr) { return u8[addr]<<8|u8[addr+1]; }
             const atoi = function(a) { return a.charCodeAt(0); }
+ 
             const xhr = new XMLHttpRequest();
-
-            xhr.addEventListener("load",function(){
+            xhr.addEventListener("load",function() {
                
                 const bin = new Uint8Array(this.response);
                 let list = [];
                 
                 let w = 0;
                 let h = 0;
+                let depth = 0;
                 let timeScale = 0;
                 let FPS = 0;
                 
@@ -53,6 +58,11 @@
                                     k+=2;
                                     h = U16(moov,k);
                                     k+=2;
+                                }
+                                k+=4+4+4+2+32;
+                                if(k<moov_size-3) {
+                                    depth = U16(moov,k)>>3;
+                                    console.log(depth);
                                 }
                             }
                         }
@@ -90,7 +100,10 @@
                     }
                 }
                 
-                if(w>0&&h>0&&timeScale&&FPS) {
+                if(w>0&&h>0&&(depth==3||depth==4)&&timeScale&&FPS) {
+                    
+                    console.log(w,h);
+                    
                     const canvas = document.createElement("canvas");
                     canvas.width = w;
                     canvas.height = h;
@@ -101,16 +114,16 @@
                     let imageData = ctx.getImageData(0,0,w,h);
                     
                     const size = (w*h)<<2;
-                    let src = new Uint8Array(Module.HEAPU8.buffer,Module._malloc(size),size);
+                    let src = new Uint8Array(Module.HEAPU8.buffer,Module._malloc(size+h),size+h);
                     let dst = new Uint8Array(Module.HEAPU8.buffer,Module._malloc(size),size);
-                    let decode = Module.cwrap("decode","void",["number","number","number","number","number"]);
+                    let decode = Module.cwrap("decode","void",["number","number","number","number","number","number"]);
                     
                     let frame = 0;
                     setInterval(function() {
                        const seek = list[frame][0];
                        const length = list[frame][1];
                        for(let k=0; k<length; k++) src[k] = bin[seek+k];
-                       decode(dst.byteOffset,w,h,src.byteOffset,length);
+                       decode(dst.byteOffset,w,h,depth,src.byteOffset,length);
                        imageData.data.set(dst);
                        ctx.putImageData(imageData,0,0);
                        frame++;
