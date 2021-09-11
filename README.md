@@ -28,7 +28,6 @@ recorder->save();
 QTZPNGParser *parser = new QTZPNGParser(@"./zpng.mov");
 NSData *zpng = parser->get(0);
 ZSTD_decompress(src,(w*h)*Filter::RGBA,[zpng bytes],[zpng length]);
-Filter *filter = new Filter(w,h,Filter::RGB,false);
 Filter::Decoder *decoder = new Filter::Decoder(w,h,Filter::RGBA);
 decoder->decode(src,Filter::ARGB);
 ```
