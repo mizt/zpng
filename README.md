@@ -27,7 +27,7 @@ recorder->save();
 ```
 QTZPNGParser *parser = new QTZPNGParser(@"./zpng.mov");
 NSData *zpng = parser->get(0);
-ZSTD_decompress(src,(w*h)*Filter::RGBA,[zpng bytes],[zpng length]);
+ZSTD_decompress(src,(w*h)*Filter::RGBA+h,[zpng bytes],[zpng length]);
 Filter::Decoder *decoder = new Filter::Decoder(w,h,Filter::RGBA);
 decoder->decode(src,Filter::ARGB);
 ```
@@ -39,14 +39,14 @@ Using [stb_image_write](https://github.com/nothings/stb/blob/master/stb_image_wr
 
 ```
 QTZPNGParser *parser = new QTZPNGParser(@"./zpng.mov");
-NSData *zpng = parser->get(0);
-ZSTD_decompress(src,(w*h)<<2,[zpng bytes],[zpng length]);
-Filter::Decoder *decoder = new Filter::Decoder(w,h,Filter::RGB);
 unsigned int bpp = parser->depth()>>3;
+NSData *zpng = parser->get(0);
+ZSTD_decompress(src,(w*h)*bpp+h,[zpng bytes],[zpng length]);
+Filter::Decoder *decoder = new Filter::Decoder(w,h,bpp);
 decoder->decode((unsigned char *)src,bpp);
 int len = 0;    
 unsigned char *png = stbi_write_png_to_mem((const unsigned char *)decoder->bytes(),w*bpp,w,h,bpp,&len);
-QTPNGRecorder *recorder = new QTPNGRecorder(w,h,30,parser->depth(),@"./png.mov");
+QTPNGRecorder *recorder = new QTPNGRecorder(w,h,30,bpp<<3,@"./png.mov");
 recorder->add(png,len);
 recorder->save();
 ```
