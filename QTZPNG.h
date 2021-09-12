@@ -11,9 +11,11 @@ class VideoRecorder {
         bool _isRecorded = false;
     
         NSFileHandle *_handle;
-        unsigned int _length = 0;
-        std::vector<unsigned int> _frames;
+        std::vector<unsigned int> _frames;    
+        std::vector<unsigned long> _chanks;
 
+        unsigned long _offset = 0;
+    
         unsigned short _width = 1920;
         unsigned short _height = 1080;
         double _FPS = 30;
@@ -84,9 +86,7 @@ class QTSequenceRecorder : public VideoRecorder {
         unsigned int ModificationTime = CreationTime;
         unsigned int TimeScale = 30000;
         unsigned short Language = 0;
-  
-        Atom mdat;
-        
+          
         unsigned long swapU64(unsigned long n) {
             return ((n>>56)&0xFF)|(((n>>48)&0xFF)<<8)|(((n>>40)&0xFF)<<16)|(((n>>32)&0xFF)<<24)|(((n>>24)&0xFF)<<32)|(((n>>16)&0xFF)<<40)|(((n>>8)&0xFF)<<48)|((n&0xFF)<<56);
         }
@@ -167,32 +167,51 @@ class QTSequenceRecorder : public VideoRecorder {
             this->setU32(bin,0);
             this->setString(bin,"qt  ",4);
             this->initAtom(bin,"wide",8);
-            this->mdat = this->initAtom(bin,"mdat");
-            this->_length = 8;
+            
             [bin writeToFile:this->_fileName options:NSDataWritingAtomic error:nil];
             this->_handle = [NSFileHandle fileHandleForWritingAtPath:this->_fileName];
             [this->_handle seekToEndOfFile];
+            
+            this->_offset = [bin length];
+            
+            /*
+            
+            NSLog(@"%lu",this->_offset);
+          
+             */
         }
     
         QTSequenceRecorder *add(unsigned char *data,int length) {
             if(!this->_isRecorded) {
-                if(this->_isRunning==false) {
-                    this->_isRunning = true;
-                }
+                if(this->_isRunning==false) this->_isRunning = true;
+                
                 unsigned int size = length;
                 unsigned int diff = 0;
                 if(length%4!=0) {
                     diff=(((length+3)>>2)<<2)-length;
                     size+=diff;
                 }
-                this->_frames.push_back(size);
+                
                 NSMutableData *bin = [[NSMutableData alloc] init];
+                [bin appendBytes:new unsigned int[1]{swapU32(0)} length:4];
+                setString(bin,"mdat");
+                
+                this->_frames.push_back(size);
+                this->_chanks.push_back(8+this->_offset);
+                
                 [bin appendBytes:data length:length];
                 if(diff) {
                     [bin appendBytes:new unsigned char[diff]{0} length:diff];
                 }
-                this->_length+=(unsigned int)[bin length];
+                                
+                [this->_handle seekToEndOfFile];
                 [this->_handle writeData:bin];
+                [this->_handle seekToFileOffset:this->_offset];
+                NSData *tmp = [[NSData alloc] initWithBytes:new unsigned int[1]{0} length:4];
+                *((unsigned int *)[tmp bytes]) = swapU32((unsigned int)[bin length]);
+                [this->_handle writeData:tmp];
+                [this->_handle seekToEndOfFile];
+                this->_offset+=[bin length];
             }
             
             return this;
@@ -200,12 +219,6 @@ class QTSequenceRecorder : public VideoRecorder {
     
         void save() {
             if(this->_isRunning&&!this->_isRecorded) {
-                
-                NSData *tmp = [[NSData alloc] initWithBytes:new unsigned int[1]{0} length:4];
-                *((unsigned int *)[tmp bytes]) = swapU32(this->_length);
-                [this->_handle seekToFileOffset:this->mdat.second];
-                [this->_handle writeData:tmp];
-                
                 NSMutableData *bin = [[NSMutableData alloc] init];
                 unsigned int Duration = (unsigned int)this->_frames.size()*1000;
                 Atom moov = this->initAtom(bin,"moov");
@@ -368,11 +381,9 @@ class QTSequenceRecorder : public VideoRecorder {
                 this->setAtomSize(bin,stsz.second);
                 Atom stco = initAtom(bin,"co64");
                 this->setVersionWithFlag(bin);
-                this->setU32(bin,(unsigned int)this->_frames.size()); // Number of entries
-                unsigned long chunk = this->mdat.second+8;
-                for(int k=0; k<this->_frames.size(); k++) {
-                    this->setU64(bin,chunk); // Chunk
-                    chunk+=this->_frames[k];
+                this->setU32(bin,(unsigned int)this->_chanks.size()); // Number of entries
+                for(int k=0; k<this->_chanks.size(); k++) {
+                    this->setU64(bin,this->_chanks[k]); // Chunk
                 }
                 this->setAtomSize(bin,minf.second);
                 this->setAtomSize(bin,stco.second);
