@@ -428,16 +428,20 @@ class QTSequenceParser {
         unsigned short _depth = 0;
     
         unsigned int _totalFrames = 0;
-        std::pair<unsigned int,unsigned int> *_frames = nullptr;
+        std::pair<unsigned long,unsigned int> *_frames = nullptr;
     
-        unsigned short swapU16(unsigned short n) {
-            return ((n>>8)&0xFF)|((n&0xFF)<<8);
+        unsigned long swapU64(unsigned long n) {
+            return ((n>>56)&0xFF)|(((n>>48)&0xFF)<<8)|(((n>>40)&0xFF)<<16)|(((n>>32)&0xFF)<<24)|(((n>>24)&0xFF)<<32)|(((n>>16)&0xFF)<<40)|(((n>>8)&0xFF)<<48)|((n&0xFF)<<56);
         }
         
         unsigned int swapU32(unsigned int n) {
             return ((n>>24)&0xFF)|(((n>>16)&0xFF)<<8)|(((n>>8)&0xFF)<<16)|((n&0xFF)<<24);
         }
-    
+        
+        unsigned short swapU16(unsigned short n) {
+            return ((n>>8)&0xFF)|((n&0xFF)<<8);
+        }
+        
     public:
     
         unsigned short width() { return this->_width; }
@@ -473,15 +477,15 @@ class QTSequenceParser {
             unsigned char *key =(unsigned char *)str.c_str();
             return key[0]<<24|key[1]<<16|key[2]<<8|key[3];
         }
+    
+        unsigned long size() {
+            fpos_t size = 0;
+            fseeko(this->_fp,0,SEEK_END);
+            fgetpos(this->_fp,&size);
+            return size;
+        }
 
         void parse(FILE *fp,std::string key) {
-            
-            /*
-                fpos_t size = 0;
-                fseeko(fp,0,SEEK_END);
-                fgetpos(fp,&size);
-                NSLog(@"%lld",size);
-            */
             
             this->_fp = fp;
             if(fp!=NULL){
@@ -496,6 +500,7 @@ class QTSequenceParser {
                 fread(&buffer,sizeof(unsigned int),1,fp); // 4*8
 
                 while(true) {
+                    
                     if(this->swapU32(buffer)==this->atom("mdat")) {
                         //NSLog(@"mdat");
                         fseeko(fp,(4*8)+offset-4,SEEK_SET);
@@ -549,22 +554,39 @@ class QTSequenceParser {
                                         if(this->swapU32(*((unsigned int *)(moov+k)))==atom("stsz")) {
                                             k+=(4*3);
                                             if(k<(len-8)) {
-                                                unsigned int chunk = 4*9;
                                                 this->_totalFrames = this->swapU32(*((unsigned int *)(moov+k)));
                                                 if(this->_frames) delete[] this->_frames;
-                                                this->_frames = new std::pair<unsigned int,unsigned int>[this->_totalFrames];
+                                                this->_frames = new std::pair<unsigned long,unsigned int>[this->_totalFrames];
                                                 for(int f=0; f<this->_totalFrames; f++) {
                                                     k+=4;
                                                     if(k<(len-8)) {
                                                         unsigned int size = this->swapU32(*((unsigned int *)(moov+k)));
-                                                        this->_frames[f] = std::make_pair(chunk,size);
-                                                        chunk+=size;
+                                                        this->_frames[f] = std::make_pair(0,size);
                                                     }
                                                 }
                                                 break;
                                             }
                                         }
                                     }
+                                    
+                                    for(int k=0; k<(len-8)-3; k++) {
+                                        if(this->swapU32(*((unsigned int *)(moov+k)))==atom("co64")) {
+                                            k+=(4*2);
+                                            if(k<(len-8)) {
+                                                if(this->_totalFrames==this->swapU32(*((unsigned int *)(moov+k)))) {
+                                                    k+=4;
+                                                    for(int f=0; f<this->_totalFrames; f++) {
+                                                        if(k<(len-8)) {
+                                                            this->_frames[f].first = this->swapU64(*((unsigned long *)(moov+k)));
+                                                            k+=8;
+                                                        }
+                                                    }
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+
                                 }
                             }
                         }
