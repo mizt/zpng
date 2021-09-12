@@ -11,9 +11,11 @@ class VideoRecorder {
         bool _isRecorded = false;
     
         NSFileHandle *_handle;
-        unsigned int _length = 0;
-        std::vector<unsigned int> _frames;
+        std::vector<unsigned int> _frames;    
+        std::vector<unsigned long> _chanks;
 
+        unsigned long _offset = 0;
+    
         unsigned short _width = 1920;
         unsigned short _height = 1080;
         double _FPS = 30;
@@ -84,8 +86,10 @@ class QTSequenceRecorder : public VideoRecorder {
         unsigned int ModificationTime = CreationTime;
         unsigned int TimeScale = 30000;
         unsigned short Language = 0;
-  
-        Atom mdat;
+          
+        unsigned long swapU64(unsigned long n) {
+            return ((n>>56)&0xFF)|(((n>>48)&0xFF)<<8)|(((n>>40)&0xFF)<<16)|(((n>>32)&0xFF)<<24)|(((n>>24)&0xFF)<<32)|(((n>>16)&0xFF)<<40)|(((n>>8)&0xFF)<<48)|((n&0xFF)<<56);
+        }
     
         unsigned int swapU32(unsigned int n) {
             return ((n>>24)&0xFF)|(((n>>16)&0xFF)<<8)|(((n>>8)&0xFF)<<16)|((n&0xFF)<<24);
@@ -95,6 +99,10 @@ class QTSequenceRecorder : public VideoRecorder {
             return ((n>>8)&0xFF)|((n&0xFF)<<8);
         }
 
+        void setU64(NSMutableData *bin,unsigned long value) {
+            [bin appendBytes:new unsigned long[1]{swapU64(value)} length:8];
+        }
+    
         void setU32(NSMutableData *bin,unsigned int value) {
             [bin appendBytes:new unsigned int[1]{swapU32(value)} length:4];
         }
@@ -159,32 +167,51 @@ class QTSequenceRecorder : public VideoRecorder {
             this->setU32(bin,0);
             this->setString(bin,"qt  ",4);
             this->initAtom(bin,"wide",8);
-            this->mdat = this->initAtom(bin,"mdat");
-            this->_length = 8;
+            
             [bin writeToFile:this->_fileName options:NSDataWritingAtomic error:nil];
             this->_handle = [NSFileHandle fileHandleForWritingAtPath:this->_fileName];
             [this->_handle seekToEndOfFile];
+            
+            this->_offset = [bin length];
+            
+            /*
+            
+            NSLog(@"%lu",this->_offset);
+          
+             */
         }
     
         QTSequenceRecorder *add(unsigned char *data,int length) {
             if(!this->_isRecorded) {
-                if(this->_isRunning==false) {
-                    this->_isRunning = true;
-                }
+                if(this->_isRunning==false) this->_isRunning = true;
+                
                 unsigned int size = length;
                 unsigned int diff = 0;
                 if(length%4!=0) {
                     diff=(((length+3)>>2)<<2)-length;
                     size+=diff;
                 }
-                this->_frames.push_back(size);
+                
                 NSMutableData *bin = [[NSMutableData alloc] init];
+                [bin appendBytes:new unsigned int[1]{swapU32(0)} length:4];
+                setString(bin,"mdat");
+                
+                this->_frames.push_back(size);
+                this->_chanks.push_back(8+this->_offset);
+                
                 [bin appendBytes:data length:length];
                 if(diff) {
                     [bin appendBytes:new unsigned char[diff]{0} length:diff];
                 }
-                this->_length+=(unsigned int)[bin length];
+                                
+                [this->_handle seekToEndOfFile];
                 [this->_handle writeData:bin];
+                [this->_handle seekToFileOffset:this->_offset];
+                NSData *tmp = [[NSData alloc] initWithBytes:new unsigned int[1]{0} length:4];
+                *((unsigned int *)[tmp bytes]) = swapU32((unsigned int)[bin length]);
+                [this->_handle writeData:tmp];
+                [this->_handle seekToEndOfFile];
+                this->_offset+=[bin length];
             }
             
             return this;
@@ -193,10 +220,6 @@ class QTSequenceRecorder : public VideoRecorder {
         void save() {
             if(this->_isRunning&&!this->_isRecorded) {
                 NSMutableData *bin = [[NSMutableData alloc] init];
-                NSData *tmp = [[NSData alloc] initWithBytes:new unsigned int[1]{0} length:4];
-                *((unsigned int *)[tmp bytes]) = swapU32(this->_length);
-                [this->_handle seekToFileOffset:this->mdat.second];
-                [this->_handle writeData:tmp];
                 unsigned int Duration = (unsigned int)this->_frames.size()*1000;
                 Atom moov = this->initAtom(bin,"moov");
                 Atom mvhd = this->initAtom(bin,"mvhd");
@@ -356,13 +379,11 @@ class QTSequenceRecorder : public VideoRecorder {
                     this->setU32(bin,this->_frames[k]);
                 }
                 this->setAtomSize(bin,stsz.second);
-                Atom stco = initAtom(bin,"stco");
+                Atom stco = initAtom(bin,"co64");
                 this->setVersionWithFlag(bin);
-                this->setU32(bin,(unsigned int)this->_frames.size()); // Number of entries
-                int chunk = this->mdat.second+8;
-                for(int k=0; k<this->_frames.size(); k++) {
-                    this->setU32(bin,chunk); // Chunk
-                    chunk+=this->_frames[k];
+                this->setU32(bin,(unsigned int)this->_chanks.size()); // Number of entries
+                for(int k=0; k<this->_chanks.size(); k++) {
+                    this->setU64(bin,this->_chanks[k]); // Chunk
                 }
                 this->setAtomSize(bin,minf.second);
                 this->setAtomSize(bin,stco.second);
@@ -407,16 +428,20 @@ class QTSequenceParser {
         unsigned short _depth = 0;
     
         unsigned int _totalFrames = 0;
-        std::pair<unsigned int,unsigned int> *_frames = nullptr;
+        std::pair<unsigned long,unsigned int> *_frames = nullptr;
     
-        unsigned short swapU16(unsigned short n) {
-            return ((n>>8)&0xFF)|((n&0xFF)<<8);
+        unsigned long swapU64(unsigned long n) {
+            return ((n>>56)&0xFF)|(((n>>48)&0xFF)<<8)|(((n>>40)&0xFF)<<16)|(((n>>32)&0xFF)<<24)|(((n>>24)&0xFF)<<32)|(((n>>16)&0xFF)<<40)|(((n>>8)&0xFF)<<48)|((n&0xFF)<<56);
         }
         
         unsigned int swapU32(unsigned int n) {
             return ((n>>24)&0xFF)|(((n>>16)&0xFF)<<8)|(((n>>8)&0xFF)<<16)|((n&0xFF)<<24);
         }
-    
+        
+        unsigned short swapU16(unsigned short n) {
+            return ((n>>8)&0xFF)|((n&0xFF)<<8);
+        }
+        
     public:
     
         unsigned short width() { return this->_width; }
@@ -452,6 +477,13 @@ class QTSequenceParser {
             unsigned char *key =(unsigned char *)str.c_str();
             return key[0]<<24|key[1]<<16|key[2]<<8|key[3];
         }
+    
+        unsigned long size() {
+            fpos_t size = 0;
+            fseeko(this->_fp,0,SEEK_END);
+            fgetpos(this->_fp,&size);
+            return size;
+        }
 
         void parse(FILE *fp,std::string key) {
             
@@ -460,26 +492,25 @@ class QTSequenceParser {
                 
                 unsigned int type = this->atom(key);
                 
-                /*
-                    fpos_t size = 0;
-                    fseeko(fp,0,SEEK_END);
-                    fgetpos(fp,&size);
-                    NSLog(@"%lld",size);
-                */
-                
                 unsigned int buffer;
                 fseeko(fp,4*7,SEEK_SET);
                 fread(&buffer,sizeof(unsigned int),1,fp); // 4*7
-                unsigned int offset = this->swapU32(buffer);
+                int len = this->swapU32(buffer);
+                unsigned int offset = len;
                 fread(&buffer,sizeof(unsigned int),1,fp); // 4*8
-                if(this->swapU32(buffer)==this->atom("mdat")) {
+
+                while(true) {
                     
-                    fseeko(fp,(4*8)+offset-4,SEEK_SET);
-                    fread(&buffer,sizeof(unsigned int),1,fp);
-                    int len = this->swapU32(buffer);
-                    fread(&buffer,sizeof(unsigned int),1,fp);
-                    if(this->swapU32(buffer)==atom("moov")) {
-                        
+                    if(this->swapU32(buffer)==this->atom("mdat")) {
+                        //NSLog(@"mdat");
+                        fseeko(fp,(4*8)+offset-4,SEEK_SET);
+                        fread(&buffer,sizeof(unsigned int),1,fp);
+                        len = this->swapU32(buffer);
+                        offset += len;
+                        fread(&buffer,sizeof(unsigned int),1,fp);
+                    }
+                    else if(this->swapU32(buffer)==this->atom("moov")) {
+                        //NSLog(@"moov");
                         unsigned char *moov = new unsigned char[len-8];
                         fread(moov,sizeof(unsigned char),len-8,fp);
                         bool key = false;
@@ -523,30 +554,57 @@ class QTSequenceParser {
                                         if(this->swapU32(*((unsigned int *)(moov+k)))==atom("stsz")) {
                                             k+=(4*3);
                                             if(k<(len-8)) {
-                                                unsigned int chunk = 4*9;
                                                 this->_totalFrames = this->swapU32(*((unsigned int *)(moov+k)));
                                                 if(this->_frames) delete[] this->_frames;
-                                                this->_frames = new std::pair<unsigned int,unsigned int>[this->_totalFrames];
+                                                this->_frames = new std::pair<unsigned long,unsigned int>[this->_totalFrames];
                                                 for(int f=0; f<this->_totalFrames; f++) {
                                                     k+=4;
                                                     if(k<(len-8)) {
                                                         unsigned int size = this->swapU32(*((unsigned int *)(moov+k)));
-                                                        this->_frames[f] = std::make_pair(chunk,size);
-                                                        chunk+=size;
+                                                        this->_frames[f] = std::make_pair(0,size);
                                                     }
                                                 }
                                                 break;
                                             }
                                         }
                                     }
+                                    
+                                    for(int k=0; k<(len-8)-3; k++) {
+                                        if(this->swapU32(*((unsigned int *)(moov+k)))==atom("co64")) {
+                                            k+=(4*2);
+                                            if(k<(len-8)) {
+                                                if(this->_totalFrames==this->swapU32(*((unsigned int *)(moov+k)))) {
+                                                    k+=4;
+                                                    for(int f=0; f<this->_totalFrames; f++) {
+                                                        if(k<(len-8)) {
+                                                            this->_frames[f].first = this->swapU64(*((unsigned long *)(moov+k)));
+                                                            k+=8;
+                                                        }
+                                                    }
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+
                                 }
                             }
                         }
                         
                         delete[] moov;
+                        
+                        break;
                     }
+                    else {
+                        
+                        break;
+                        
+                    }
+                    
                 }
+                
             }
+                 
         }
     
         QTSequenceParser(FILE *fp,std::string key) {
