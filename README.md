@@ -5,7 +5,7 @@ Dependency on [facebook](https://github.com/facebook)/[zstd](https://github.com/
 Apply zstd compression after PNG-like filtering process.    
 Full HD Realtime encoding in lossless format (ARGB) is fast enough on M1 MacBook Air.
 
-Note: File size limit is 4294967295bytes.
+~~Note: File size limit is 4294967295bytes.~~
 
 ### Encoding to zpng sequence
 
