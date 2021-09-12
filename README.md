@@ -58,7 +58,7 @@ Support for decoding via emscripten.
 
 ### Quick Look
 
-File Extension is 'zpng'.
+File Extension is `zpng`.
 
 [https://github.com/mizt/zpng/tree/master/QuickLook/](https://github.com/mizt/zpng/tree/master/QuickLook/)
 
@@ -77,7 +77,7 @@ See aloso  [https://github.com/fnordware/AdobeOgg/tree/theora/](https://github.c
 Directly import in After Effects via Premiere Pro Importer.    
 [https://github.com/mizt/zpng/tree/master/premiere/](https://github.com/mizt/zpng/tree/master/premiere/)
 
-File Extension is 'zpng'.
+File Extension is `zpng`.
 
 ```
 char formatname[255] = "zpng";
