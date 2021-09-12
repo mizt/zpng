@@ -173,12 +173,6 @@ class QTSequenceRecorder : public VideoRecorder {
             [this->_handle seekToEndOfFile];
             
             this->_offset = [bin length];
-            
-            /*
-            
-            NSLog(@"%lu",this->_offset);
-          
-             */
         }
     
         QTSequenceRecorder *add(unsigned char *data,int length) {
