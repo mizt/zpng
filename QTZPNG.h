@@ -86,6 +86,10 @@ class QTSequenceRecorder : public VideoRecorder {
         unsigned short Language = 0;
   
         Atom mdat;
+        
+        unsigned long swapU64(unsigned long n) {
+            return ((n>>56)&0xFF)|(((n>>48)&0xFF)<<8)|(((n>>40)&0xFF)<<16)|(((n>>32)&0xFF)<<24)|(((n>>24)&0xFF)<<32)|(((n>>16)&0xFF)<<40)|(((n>>8)&0xFF)<<48)|((n&0xFF)<<56);
+        }
     
         unsigned int swapU32(unsigned int n) {
             return ((n>>24)&0xFF)|(((n>>16)&0xFF)<<8)|(((n>>8)&0xFF)<<16)|((n&0xFF)<<24);
@@ -95,6 +99,10 @@ class QTSequenceRecorder : public VideoRecorder {
             return ((n>>8)&0xFF)|((n&0xFF)<<8);
         }
 
+        void setU64(NSMutableData *bin,unsigned long value) {
+            [bin appendBytes:new unsigned long[1]{swapU64(value)} length:8];
+        }
+    
         void setU32(NSMutableData *bin,unsigned int value) {
             [bin appendBytes:new unsigned int[1]{swapU32(value)} length:4];
         }
@@ -192,11 +200,13 @@ class QTSequenceRecorder : public VideoRecorder {
     
         void save() {
             if(this->_isRunning&&!this->_isRecorded) {
-                NSMutableData *bin = [[NSMutableData alloc] init];
+                
                 NSData *tmp = [[NSData alloc] initWithBytes:new unsigned int[1]{0} length:4];
                 *((unsigned int *)[tmp bytes]) = swapU32(this->_length);
                 [this->_handle seekToFileOffset:this->mdat.second];
                 [this->_handle writeData:tmp];
+                
+                NSMutableData *bin = [[NSMutableData alloc] init];
                 unsigned int Duration = (unsigned int)this->_frames.size()*1000;
                 Atom moov = this->initAtom(bin,"moov");
                 Atom mvhd = this->initAtom(bin,"mvhd");
@@ -356,12 +366,12 @@ class QTSequenceRecorder : public VideoRecorder {
                     this->setU32(bin,this->_frames[k]);
                 }
                 this->setAtomSize(bin,stsz.second);
-                Atom stco = initAtom(bin,"stco");
+                Atom stco = initAtom(bin,"co64");
                 this->setVersionWithFlag(bin);
                 this->setU32(bin,(unsigned int)this->_frames.size()); // Number of entries
-                int chunk = this->mdat.second+8;
+                unsigned long chunk = this->mdat.second+8;
                 for(int k=0; k<this->_frames.size(); k++) {
-                    this->setU32(bin,chunk); // Chunk
+                    this->setU64(bin,chunk); // Chunk
                     chunk+=this->_frames[k];
                 }
                 this->setAtomSize(bin,minf.second);
