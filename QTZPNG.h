@@ -476,31 +476,36 @@ class QTSequenceParser {
 
         void parse(FILE *fp,std::string key) {
             
+            /*
+                fpos_t size = 0;
+                fseeko(fp,0,SEEK_END);
+                fgetpos(fp,&size);
+                NSLog(@"%lld",size);
+            */
+            
             this->_fp = fp;
             if(fp!=NULL){
                 
                 unsigned int type = this->atom(key);
                 
-                /*
-                    fpos_t size = 0;
-                    fseeko(fp,0,SEEK_END);
-                    fgetpos(fp,&size);
-                    NSLog(@"%lld",size);
-                */
-                
                 unsigned int buffer;
                 fseeko(fp,4*7,SEEK_SET);
                 fread(&buffer,sizeof(unsigned int),1,fp); // 4*7
-                unsigned int offset = this->swapU32(buffer);
+                int len = this->swapU32(buffer);
+                unsigned int offset = len;
                 fread(&buffer,sizeof(unsigned int),1,fp); // 4*8
-                if(this->swapU32(buffer)==this->atom("mdat")) {
-                    
-                    fseeko(fp,(4*8)+offset-4,SEEK_SET);
-                    fread(&buffer,sizeof(unsigned int),1,fp);
-                    int len = this->swapU32(buffer);
-                    fread(&buffer,sizeof(unsigned int),1,fp);
-                    if(this->swapU32(buffer)==atom("moov")) {
-                        
+
+                while(true) {
+                    if(this->swapU32(buffer)==this->atom("mdat")) {
+                        //NSLog(@"mdat");
+                        fseeko(fp,(4*8)+offset-4,SEEK_SET);
+                        fread(&buffer,sizeof(unsigned int),1,fp);
+                        len = this->swapU32(buffer);
+                        offset += len;
+                        fread(&buffer,sizeof(unsigned int),1,fp);
+                    }
+                    else if(this->swapU32(buffer)==this->atom("moov")) {
+                        //NSLog(@"moov");
                         unsigned char *moov = new unsigned char[len-8];
                         fread(moov,sizeof(unsigned char),len-8,fp);
                         bool key = false;
@@ -565,9 +570,19 @@ class QTSequenceParser {
                         }
                         
                         delete[] moov;
+                        
+                        break;
                     }
+                    else {
+                        
+                        break;
+                        
+                    }
+                    
                 }
+                
             }
+                 
         }
     
         QTSequenceParser(FILE *fp,std::string key) {
