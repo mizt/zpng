@@ -13,14 +13,13 @@ class VideoRecorder {
         NSFileHandle *_handle;
         std::vector<unsigned int> _frames;
     
-        unsigned int _mdat_size = 0;
+        const unsigned int MDAT_LIMIT = (1024*1024*1024)/10; // 0.1 = 100MB
         unsigned long _mdat_offset = 0;
         NSMutableData *_mdat = nil;
     
-        unsigned long _chanks_offset = 0;
-        std::vector<unsigned long> _chanks;
+        unsigned long _chunk_offset = 0;
+        std::vector<unsigned long> _chunks;
 
-    
         unsigned short _width = 1920;
         unsigned short _height = 1080;
         double _FPS = 30;
@@ -178,8 +177,8 @@ class QTSequenceRecorder : public VideoRecorder {
             [this->_handle seekToEndOfFile];
             
             this->_mdat_offset = [bin length];
-            this->_chanks_offset = 8+[bin length];
-            
+            this->_chunk_offset = [bin length];
+                        
         }
     
         QTSequenceRecorder *add(unsigned char *data,int length) {
@@ -193,44 +192,40 @@ class QTSequenceRecorder : public VideoRecorder {
                     size+=diff;
                 }
                 
-                if(_mdat==nil) {
+                if(this->_mdat&&([this->_mdat length]+size)>=MDAT_LIMIT) {
+                    
+                    [this->_handle seekToEndOfFile];
+                    [this->_handle writeData:this->_mdat];
+                    
+                    [this->_handle seekToFileOffset:this->_mdat_offset];
+                    NSData *tmp = [[NSData alloc] initWithBytes:new unsigned int[1]{swapU32((unsigned int)[this->_mdat length])} length:4];
+                    [this->_handle writeData:tmp];
+                    [this->_handle seekToEndOfFile];
+                    
+                    this->_mdat_offset+=[this->_mdat length];
+                    this->_mdat = nil;
+                    
+                }
+                
+                if(this->_mdat==nil) {
+                                        
                     this->_mdat = [[NSMutableData alloc] init];
                     [this->_mdat appendBytes:new unsigned int[1]{swapU32(0)} length:4];
                     setString(this->_mdat,"mdat");
+                    this->_chunk_offset+=8;
+                    
                 }
                 
                 this->_frames.push_back(size);
-                this->_chanks.push_back(this->_chanks_offset);
+                this->_chunks.push_back(this->_chunk_offset);
                 
                 [this->_mdat appendBytes:data length:length];
                 if(diff) {
                     [this->_mdat appendBytes:new unsigned char[diff]{0} length:diff];
                 }
                 
-                [this->_handle seekToEndOfFile];
-                [this->_handle writeData:this->_mdat];
-                
-                this->_mdat_size+=(unsigned int)[this->_mdat length];
-                
-                if(this->_mdat) {
-                    [this->_handle seekToFileOffset:this->_mdat_offset];
-                    NSData *tmp = [[NSData alloc] initWithBytes:new unsigned int[1]{0} length:4];
-                    *((unsigned int *)[tmp bytes]) = swapU32(this->_mdat_size);
-                    [this->_handle writeData:tmp];
-                    [this->_handle seekToEndOfFile];
-                    this->_mdat_size = 0;
-                    this->_mdat = nil;
-                }
-                
-                if(this->_mdat) {
-                    this->_chanks_offset+=(size);
-                    this->_mdat_offset+=(size);
-                }
-                else {
-                    this->_chanks_offset+=(8+size);
-                    this->_mdat_offset+=(8+size);
-                }
-                
+                this->_chunk_offset+=size;
+                                
             }
             
             return this;
@@ -241,8 +236,15 @@ class QTSequenceRecorder : public VideoRecorder {
                 
                 if(this->_mdat) {
                     
+                    [this->_handle seekToEndOfFile];
+                    [this->_handle writeData:this->_mdat];
                     
-                    
+                    [this->_handle seekToFileOffset:this->_mdat_offset];
+                    NSData *tmp = [[NSData alloc] initWithBytes:new unsigned int[1]{0} length:4];
+                    *((unsigned int *)[tmp bytes]) = swapU32((unsigned int)[this->_mdat length]);
+                    [this->_handle writeData:tmp];
+                    [this->_handle seekToEndOfFile];
+                    this->_mdat = nil;
                 }
                 
                 NSMutableData *bin = [[NSMutableData alloc] init];
@@ -407,9 +409,9 @@ class QTSequenceRecorder : public VideoRecorder {
                 this->setAtomSize(bin,stsz.second);
                 Atom stco = initAtom(bin,"co64");
                 this->setVersionWithFlag(bin);
-                this->setU32(bin,(unsigned int)this->_chanks.size()); // Number of entries
-                for(int k=0; k<this->_chanks.size(); k++) {
-                    this->setU64(bin,this->_chanks[k]); // Chunk
+                this->setU32(bin,(unsigned int)this->_chunks.size()); // Number of entries
+                for(int k=0; k<this->_chunks.size(); k++) {
+                    this->setU64(bin,this->_chunks[k]); // Chunk
                 }
                 this->setAtomSize(bin,minf.second);
                 this->setAtomSize(bin,stco.second);
