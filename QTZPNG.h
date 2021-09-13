@@ -13,6 +13,7 @@ class VideoRecorder {
         NSFileHandle *_handle;
         std::vector<unsigned int> _frames;
     
+        unsigned int _mdat_size = 0;
         unsigned long _mdat_offset = 0;
         NSMutableData *_mdat = nil;
     
@@ -178,6 +179,7 @@ class QTSequenceRecorder : public VideoRecorder {
             
             this->_mdat_offset = [bin length];
             this->_chanks_offset = 8+[bin length];
+            
         }
     
         QTSequenceRecorder *add(unsigned char *data,int length) {
@@ -203,15 +205,19 @@ class QTSequenceRecorder : public VideoRecorder {
                     [this->_mdat appendBytes:new unsigned char[diff]{0} length:diff];
                 }
                 
+                this->_mdat_size+=(unsigned int)[this->_mdat length];
+                
                 [this->_handle seekToEndOfFile];
                 [this->_handle writeData:this->_mdat];
                 [this->_handle seekToFileOffset:this->_mdat_offset];
                 NSData *tmp = [[NSData alloc] initWithBytes:new unsigned int[1]{0} length:4];
-                *((unsigned int *)[tmp bytes]) = swapU32((unsigned int)[this->_mdat length]);
+                *((unsigned int *)[tmp bytes]) = swapU32(this->_mdat_size);
                 [this->_handle writeData:tmp];
                 [this->_handle seekToEndOfFile];
                 this->_chanks_offset+=(8+size);
                 this->_mdat_offset+=(8+size);
+                this->_mdat_size = 0;
+                
             }
             
             return this;
