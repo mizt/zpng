@@ -524,13 +524,13 @@ class QTSequenceParser {
                 fseeko(fp,4*7,SEEK_SET);
                 fread(&buffer,sizeof(unsigned int),1,fp); // 4*7
                 int len = this->swapU32(buffer);
-                unsigned int offset = len;
+                unsigned long offset = len;
                 fread(&buffer,sizeof(unsigned int),1,fp); // 4*8
 
                 while(true) {
                     
                     if(this->swapU32(buffer)==this->atom("mdat")) {
-                        //NSLog(@"mdat");
+                        NSLog(@"mdat");
                         fseeko(fp,(4*8)+offset-4,SEEK_SET);
                         fread(&buffer,sizeof(unsigned int),1,fp);
                         len = this->swapU32(buffer);
@@ -538,7 +538,7 @@ class QTSequenceParser {
                         fread(&buffer,sizeof(unsigned int),1,fp);
                     }
                     else if(this->swapU32(buffer)==this->atom("moov")) {
-                        //NSLog(@"moov");
+                        NSLog(@"moov");
                         unsigned char *moov = new unsigned char[len-8];
                         fread(moov,sizeof(unsigned char),len-8,fp);
                         bool key = false;
@@ -624,15 +624,11 @@ class QTSequenceParser {
                         break;
                     }
                     else {
-                        
+                        NSLog(@"unknown 0x%08X",this->swapU32(buffer));
                         break;
-                        
                     }
-                    
                 }
-                
             }
-                 
         }
     
         QTSequenceParser(FILE *fp,std::string key) {
