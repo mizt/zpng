@@ -11,10 +11,14 @@ class VideoRecorder {
         bool _isRecorded = false;
     
         NSFileHandle *_handle;
-        std::vector<unsigned int> _frames;    
+        std::vector<unsigned int> _frames;
+    
+        unsigned long _mdat_offset = 0;
+        NSMutableData *_mdat = nil;
+    
+        unsigned long _chanks_offset = 0;
         std::vector<unsigned long> _chanks;
 
-        unsigned long _offset = 0;
     
         unsigned short _width = 1920;
         unsigned short _height = 1080;
@@ -172,7 +176,8 @@ class QTSequenceRecorder : public VideoRecorder {
             this->_handle = [NSFileHandle fileHandleForWritingAtPath:this->_fileName];
             [this->_handle seekToEndOfFile];
             
-            this->_offset = [bin length];
+            this->_mdat_offset = [bin length];
+            this->_chanks_offset = 8+[bin length];
         }
     
         QTSequenceRecorder *add(unsigned char *data,int length) {
@@ -186,26 +191,27 @@ class QTSequenceRecorder : public VideoRecorder {
                     size+=diff;
                 }
                 
-                NSMutableData *bin = [[NSMutableData alloc] init];
-                [bin appendBytes:new unsigned int[1]{swapU32(0)} length:4];
-                setString(bin,"mdat");
+                this->_mdat = [[NSMutableData alloc] init];
+                [this->_mdat appendBytes:new unsigned int[1]{swapU32(0)} length:4];
+                setString(this->_mdat,"mdat");
                 
                 this->_frames.push_back(size);
-                this->_chanks.push_back(8+this->_offset);
+                this->_chanks.push_back(this->_chanks_offset);
                 
-                [bin appendBytes:data length:length];
+                [this->_mdat appendBytes:data length:length];
                 if(diff) {
-                    [bin appendBytes:new unsigned char[diff]{0} length:diff];
+                    [this->_mdat appendBytes:new unsigned char[diff]{0} length:diff];
                 }
-                                
+                
                 [this->_handle seekToEndOfFile];
-                [this->_handle writeData:bin];
-                [this->_handle seekToFileOffset:this->_offset];
+                [this->_handle writeData:this->_mdat];
+                [this->_handle seekToFileOffset:this->_mdat_offset];
                 NSData *tmp = [[NSData alloc] initWithBytes:new unsigned int[1]{0} length:4];
-                *((unsigned int *)[tmp bytes]) = swapU32((unsigned int)[bin length]);
+                *((unsigned int *)[tmp bytes]) = swapU32((unsigned int)[this->_mdat length]);
                 [this->_handle writeData:tmp];
                 [this->_handle seekToEndOfFile];
-                this->_offset+=[bin length];
+                this->_chanks_offset+=(8+size);
+                this->_mdat_offset+=(8+size);
             }
             
             return this;
