@@ -31,10 +31,14 @@ class VideoRecorder {
             NSDate *date = [NSDate dateWithTimeIntervalSince1970:[timeStampString doubleValue]];
             NSDateFormatter *format = [[NSDateFormatter alloc] init];
             [format setLocale:[[NSLocale alloc] initWithLocaleIdentifier:@"ja_JP"]];
-            [format setDateFormat:@"yyyy_MM_dd_HH_mm_ss_SSS"];
+            [format setDateFormat:@"yyyy_MM_dd_HH_mm_ss_SSS"];     
+#if TARGET_OS_OSX
             NSArray *paths = NSSearchPathForDirectoriesInDomains(NSMoviesDirectory,NSUserDomainMask,YES);
-            NSString *documentsDirectory = [paths objectAtIndex:0];
-            return [NSString stringWithFormat:@"%@/%@",documentsDirectory,[format stringFromDate:date]];
+#else
+            NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,NSUserDomainMask,YES);
+#endif
+            NSString *directory = [paths objectAtIndex:0];
+            return [NSString stringWithFormat:@"%@/%@",directory,[format stringFromDate:date]];
         }
     
         void setString(NSMutableData *bin,std::string str,unsigned int length=4) {
