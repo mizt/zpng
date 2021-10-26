@@ -3,7 +3,7 @@
 Dependency on [facebook](https://github.com/facebook)/[zstd](https://github.com/facebook/zstd).
 
 Apply zstd compression after PNG-like filtering process.    
-Full HD Realtime encoding in lossless format (ARGB) is fast enough on M1 MacBook Air.
+Full HD Realtime encoding in lossless format (RGBA) is fast enough on M1 MacBook Air.
 
 Support only co64 atom.    
 ~~Note: File size limit is 4294967295bytes.~~
@@ -18,7 +18,7 @@ Support only co64 atom.
 
 ```
 Filter::Encoder *encoder = new Filter::Encoder(w,h,Filter::RGBA);
-encoder->encode(src,Filter::ARGB,5);
+encoder->encode(src,Filter::RGBA,5);
 size_t len = ZSTD_compress(dst,w*h*encoder->bpp(),encoder->bytes(),encoder->length(),1);
 QTZPNGRecorder *recorder = new QTZPNGRecorder(w,h,30,@"./zpng.mov");
 recorder->add((unsigned char *)dst,len);
