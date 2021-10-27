@@ -94,6 +94,13 @@ resource 'IMPT' (1000)
 };
 ```
 
+### For iPhone 13 Pro
+
+Full HD Realtime encoding is available by setting Sub filter only.
+[https://github.com/mizt/zpng/blob/master/FastEncoder.h](https://github.com/mizt/zpng/blob/master/FastEncoder.h)
+
+`-isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk` option is required for make.
+
 ### Decoding corrupted data example
 
 [https://mizt.github.io/zpng/err/](https://mizt.github.io/zpng/err/)
