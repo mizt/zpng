@@ -29,9 +29,9 @@ namespace Filter {
                     unsigned char _b = b;
                     
                     for(int j=1; j<this->_width; j++) {
-                        pixel = *src++;
                         
                         pixel = *src++;
+
                         a = pixel>>24;
                         r = (pixel>>16)&0xFF;
                         g = (pixel>>8)&0xFF;
