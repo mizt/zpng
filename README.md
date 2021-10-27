@@ -94,6 +94,10 @@ resource 'IMPT' (1000)
 };
 ```
 
+### Max External Object
+
+Add `jit.zpng` to Bundle Identifier.
+
 ### For iPhone 13 Pro
 
 Full HD Realtime encoding is available by setting Sub filter only.
