@@ -103,7 +103,7 @@ Add `jit.zpng` to Bundle Identifier.
 Full HD Realtime encoding is available by setting Sub filter only.
 [https://github.com/mizt/zpng/blob/master/FastEncoder.h](https://github.com/mizt/zpng/blob/master/FastEncoder.h)
 
-`-isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk` option is required for make.
+`-isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk` or `-isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk`  option is required for make.
 
 ### Decoding corrupted data example
 
@@ -112,4 +112,3 @@ Full HD Realtime encoding is available by setting Sub filter only.
 ### Similar project
 
 [catid](https://github.com/catid)/[Zpng](https://github.com/catid/Zpng)
-
