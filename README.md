@@ -17,9 +17,9 @@ Support only co64 atom.
 ```
 
 ```
-Filter::Encoder *encoder = new Filter::Encoder(w,h,Filter::RGBA);
-encoder->encode(src,Filter::RGBA,5);
-size_t len = ZSTD_compress(dst,w*h*encoder->bpp(),encoder->bytes(),encoder->length(),1);
+Filter::Encoder *encoder = new Filter::Encoder(w,h,Filter::Color::RGBA);
+encoder->encode(src,Filter::Color::RGBA,5);
+size_t len = ZSTD_compress(dst,(w+1)*h*encoder->bpp(),encoder->bytes(),encoder->length(),1);
 QTZPNGRecorder *recorder = new QTZPNGRecorder(w,h,30,@"./zpng.mov");
 recorder->add((unsigned char *)dst,len);
 recorder->save();
@@ -29,9 +29,9 @@ recorder->save();
 ```
 QTZPNGParser *parser = new QTZPNGParser(@"./zpng.mov");
 NSData *zpng = parser->get(0);
-ZSTD_decompress(src,(w*h)*Filter::RGBA+h,[zpng bytes],[zpng length]);
+ZSTD_decompress(src,w*h*Filter::Color::RGBA+h,[zpng bytes],[zpng length]);
 Filter::Decoder *decoder = new Filter::Decoder(w,h,Filter::RGBA);
-decoder->decode(src,Filter::ARGB);
+decoder->decode(src,Filter::Color::ARGB);
 ```
 
 ### Converting to QuickTime PNG sequence
