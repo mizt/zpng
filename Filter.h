@@ -1,7 +1,20 @@
 namespace Filter {
 
-    const static int RGB = 3;
-    const static int RGBA = 4;
+    enum Color {
+        RGB = 3,
+        RGBA = 4
+    };
+
+    enum Type {
+        None = 0,
+        Sub = 1,
+        Up = 2,
+        Average = 3,
+        Paeth = 4,
+        Adaptive = 5
+    };
+
+    const static int THREAD = 4;
 
     inline unsigned char predictor(unsigned char a, unsigned char b, unsigned char c) {
          int p = a+b-c;
@@ -9,12 +22,15 @@ namespace Filter {
          int pb = abs(p-b);
          int pc = abs(p-c);
          return (pa<=pb&&pa<=pc)?a:((pb<=pc)?b:c);
-     }
+    }
 
     class Base {
         
         protected:
         
+            dispatch_group_t _group = dispatch_group_create();
+            dispatch_queue_t _queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH,0);
+
             unsigned int _width;
             unsigned int _height;
             unsigned int _bpp;
@@ -51,11 +67,10 @@ namespace Filter {
         protected:
             
             unsigned char *_filters[5] = {nullptr,nullptr,nullptr,nullptr,nullptr};
-
         
         public:
         
-            Encoder(unsigned int w, unsigned int h, unsigned int bpp) : Base(w,h,bpp) {
+            Encoder(unsigned int w, unsigned int h,Filter::Color bpp) : Base(w,h,bpp) {
                 for(int f=1; f<5; f++) this->_filters[f] = new unsigned char[this->_width*this->_bpp];
             }
             
@@ -65,50 +80,67 @@ namespace Filter {
                 }
             }
         
-            void encode(unsigned char *buffer,int ch,unsigned int filter) {
-                
-                this->_length = this->_height*(this->_width+1)*this->_bpp;
-                
+        
+            void encode(unsigned char *buffer,Filter::Color ch,Filter::Type filter, unsigned int begin, unsigned int end) {
+                                
                 unsigned int src_row = this->_width*ch;
                 unsigned int dst_row = this->_width*this->_bpp;
                 
+                bool eq = (ch==this->_bpp)?true:false;
+                
                 int num = (this->_bpp>ch)?ch:this->_bpp;
 
-                for(int i=0; i<this->_height; i++) {
+                for(int i=begin; i<end; i++) {
                     
                     unsigned char *src = buffer+i*src_row;
                     unsigned char *dst = this->_bytes+i*(dst_row+1)+1;
                     
-                    unsigned int _filter = filter;
+                    unsigned int type = filter;
                     
-                    if(_filter==1) {
+                    if(type==Filter::Type::Sub) {
                         for(int j=0; j<this->_width; j++) {
                             unsigned char *W = (j==0)?this->_black:buffer+i*src_row+(j-1)*ch;
                             for(int n=0; n<num; n++) *dst++ = ((*src++)-(*W++))&0xFF;
+                            if(!eq) {
+                                if(this->_bpp<ch) src++;
+                                else if(this->_bpp>ch) *dst++ = 0xFF;
+                            }
                         }
                     }
-                    else if(_filter==2) {
+                    else if(type==Filter::Type::Up) {
                         for(int j=0; j<this->_width; j++) {
                             unsigned char *N = (i==0)?this->_black:buffer+(i-1)*src_row+j*ch;
                             for(int n=0; n<num; n++) *dst++ = ((*src++)-(*N++))&0xFF;
+                            if(!eq) {
+                                if(this->_bpp<ch) src++;
+                                else if(this->_bpp>ch) *dst++ = 0xFF;
+                            }
                         }
                     }
-                    else if(_filter==3) {
+                    else if(type==Filter::Type::Average) {
                         for(int j=0; j<this->_width; j++) {
                             unsigned char *W = (j==0)?this->_black:buffer+i*src_row+(j-1)*ch;
                             unsigned char *N = (i==0)?this->_black:buffer+(i-1)*src_row+j*ch;
                             for(int n=0; n<num; n++) *dst++ = ((*src++)-(((*W++)+(*N++))>>1))&0xFF;
+                            if(!eq) {
+                                if(this->_bpp<ch) src++;
+                                else if(this->_bpp>ch) *dst++ = 0xFF;
+                            }
                         }
                     }
-                    else if(_filter==4) {
+                    else if(type==Filter::Type::Paeth) {
                         for(int j=0; j<this->_width; j++) {
                             unsigned char *W = (j==0)?this->_black:buffer+i*src_row+(j-1)*ch;
                             unsigned char *N = (i==0)?this->_black:buffer+(i-1)*src_row+j*ch;
                             unsigned char *NW = (i==0||j==0)?this->_black:buffer+(i-1)*src_row+(j-1)*ch;
                             for(int n=0; n<num; n++) *dst++ = ((*src++)-predictor((*W++),(*N++),(*NW++)))&0xFF;
+                            if(!eq) {
+                                if(this->_bpp<ch) src++;
+                                else if(this->_bpp>ch) *dst++ = 0xFF;
+                            }
                         }
                     }
-                    else if(_filter==5) {
+                    else if(type==Filter::Type::Adaptive) {
                         for(int j=0; j<this->_width; j++) {
                             unsigned char *W = (j==0)?this->_black:buffer+i*src_row+(j-1)*ch;
                             unsigned char *N = (i==0)?this->_black:buffer+(i-1)*src_row+j*ch;
@@ -123,8 +155,10 @@ namespace Filter {
                                 N++;
                                 NW++;
                             }
-                            if(this->_bpp<ch) src++;
-                            else if(this->_bpp>ch) *dst++ = 0xFF;
+                            if(!eq) {
+                                if(this->_bpp<ch) src++;
+                                else if(this->_bpp>ch) *dst++ = 0xFF;
+                            }
                         }
                         
                         const int INDEX = 0, VALUE = 1;
@@ -141,24 +175,56 @@ namespace Filter {
                                 }
                             }
                         }
-                        _filter = best_filter[INDEX];
+                        type = best_filter[INDEX];
                         
                         for(int j=0; j<this->_width; j++) {
                             for(int n=0; n<num; n++) {
-                                *dst++ = this->_filters[_filter][j*this->_bpp+n];
+                                *dst++ = this->_filters[type][j*this->_bpp+n];
+                            }
+                            if(!eq) {
+                                if(this->_bpp<ch) src++;
+                                else if(this->_bpp>ch) *dst++ = 0xFF;
                             }
                         }
                     }
                     else {
                         for(int j=0; j<this->_width; j++) {
                             for(int n=0; n<num; n++) *dst++ = *src++;
+                            if(!eq) {
+                                if(this->_bpp<ch) src++;
+                                else if(this->_bpp>ch) *dst++ = 0xFF;
+                            }
                         }
                     }
                     
-                    if(this->_bpp<ch) src++;
-                    else if(this->_bpp>ch) *dst++ = 0xFF;
+                    this->_bytes[i*(this->_width*this->_bpp+1)+0] = (unsigned char)type;
+                }
+            }
+        
+            void encode(unsigned char *buffer,Filter::Color ch,Filter::Type filter) {
                 
-                    this->_bytes[i*(this->_width*this->_bpp+1)+0] = _filter;
+                this->_length = this->_height*(this->_width+1)*this->_bpp;
+                
+                if(THREAD==0) {
+                    this->encode(buffer,ch,filter,0,this->_height);
+                }
+                else {
+                    unsigned char thread = THREAD>=8?8:THREAD;
+                    
+                    int step = this->_height/thread;
+                    
+                    for(int n=0; n<thread; n++) {
+                        
+                        unsigned int begin = step*n;
+                        unsigned int end = (n<thread-1)?step*(n+1):this->_height;
+                        
+                        dispatch_group_async(this->_group,_queue,^{
+                            this->encode(buffer,ch,filter,begin,end);
+                        });
+                    }
+                    
+                    dispatch_group_wait(this->_group,DISPATCH_TIME_FOREVER);
+
                 }
             }
     };
