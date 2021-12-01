@@ -1,0 +1,210 @@
+* {
+    margin:0;
+    padding:0;
+    text-rendering:optimizeSpeed;
+    letter-spacing:1.5px;
+    font-kerning:none;
+    outline : none;
+}
+
+body {
+    -webkit-text-size-adjust:100%;
+    font-family: 'Hiragino Kaku Gothic Pro','ヒラギノ角ゴ Pro W3','メイリオ',Meiryo,'ＭＳ Ｐゴシック',sans-serif;
+    overflow-x:hidden;
+    color:#242424;
+    font-weight:normal;
+    font-size:14px;
+    line-height:26px;
+    font-feature-settings:"palt";
+    word-wrap: break-word;
+    /*word-break:break-all;*/.
+    word-break:break-word;
+    text-align:justify;
+    text-align-last:left;
+    -webkit-tap-highlight-color: transparent;
+    background:#FFF;
+}
+
+::selection { background:rgba(128,128,128,0.25); }
+::-moz-selection { background:rgba(128,128,128,0.25); }
+pre::selection { background:rgba(255,255,255,0.25); }
+pre::-moz-selection { background:rgba(255,255,255,0.25); }
+img::selection, iframe::selection { background:rgba(0,0,0,0); }
+img::-moz-selection, iframe::-moz-selection { background:rgba(0,0,0,0); }
+
+.strikethrough { text-decoration:line-through; } 
+.br:before { content:"\A"; white-space:pre; }
+
+.condensed {
+    position:relative;
+    width:111%;
+    transform-origin:top left;
+    transform:scale(0.9,1);
+}
+
+#container {
+    position:relative;
+    width:86vw;
+    min-height:100%;
+    max-width:1921px;
+    margin:0 auto 0 auto;
+    padding:2px 0 48px 0;
+}
+
+h1, h2, h3, p {
+    margin-top:17px;
+    margin-bottom:-7px;
+}
+
+h1, h2, h3 {
+    font-weight:600;
+}
+
+h1 {
+    font-size:22px;
+    line-height:32px;
+    text-align:justify;
+    text-align-last:left;
+    word-wrap: break-word;
+    word-break:break-all;
+}
+
+h2 {
+    font-size:18px;
+    line-height:28px;
+    position:relative;
+    width:111%;
+    transform-origin:top left;
+    transform:scale(0.9,1);
+}
+
+h3, p {
+    font-size:14px;
+    line-height:24px;
+}
+
+p {
+    font-weight:normal;
+    text-align:left;
+    word-wrap: break-word;
+    word-break: break-strict;
+}
+
+#container > h1:last-child,
+#container > h2:last-child,
+#container > h3:last-child,
+#container > p:last-child {
+    margin-bottom:0px;
+}
+
+ul, blockquote, img, pre, table, img, video, audio { margin-top:24px; }
+
+a {
+    color:#00F;
+    text-decoration:none;
+}
+
+pre {
+    font-family: SFMono-Regular,Consolas,Liberation Mono,Menlo,Courier,monospace;
+    font-size:13px;
+    line-height:20px;
+    border-radius:2px;
+    padding:12px 16px;
+    background-color:#1d1e39;
+    color:#FEFEFE;
+    tab-size:2;
+    white-space: pre;
+    white-space: pre-wrap;
+    white-space: -pre-wrap;
+    white-space: -o-pre-wrap;
+    white-space: -moz-pre-wrap;
+    white-space: -hp-pre-wrap;
+    word-wrap: break-word;
+    word-break:break-all;
+}
+
+div#list {
+    margin-top:0;
+}
+
+div#list {
+    padding-top:2px;
+}
+
+#list p {
+    font-size:18px;
+    line-height:30px;
+    margin-top:18px;
+}
+
+#list span {
+    color:blue;
+    display:inline-block;
+    border-bottom: 2px solid blue;
+}
+
+img {
+    width:auto;
+    max-width:100%;
+    background:#FAFAFA;
+    vertical-align:top;
+}
+
+video {
+    width:auto;
+    max-width:100%;
+    vertical-align:top;
+    background:#FAFAFA;
+}
+
+p.tags a {
+    margin-right:8px;
+}
+
+p.new:after {
+    content:'';
+    height: 6px;
+    width: 6px;
+    display:inline-block;
+    border-radius: 50%;
+    background:#F44;
+    vertical-align:top;
+    margin-left:4px;
+}
+
+table {
+    text-align:left;
+    border-collapse: collapse;
+    border:1px solid #333;
+}
+
+table td {
+    border:1px solid #333; 
+    font-size:14px;
+    line-height:24px;
+    padding:0.5em 1em;
+    vertical-align:top;
+    word-wrap: break-word;
+    word-break:break-all;
+}
+
+#container .gist-wrapper {
+    tab-size:4;
+    -moz-tab-size:4;
+    font-family: SFMono-Regular,Consolas,Liberation Mono,Menlo,Courier,monospace;
+    margin-top:24px;
+}
+
+#container .gist-file {
+    margin-bottom:0;
+}
+
+#container .gist-data table {
+    margin-top: 1em !important;
+    margin-bottom: 1em !important;
+    background:transparent !important;
+}
+
+#container .gist-data {
+    background:#FAFAFA !important;
+}

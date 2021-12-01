@@ -1,0 +1,27 @@
+[
+    ["h2","Encode"],
+    ["p","RGB",["br"],"1920×1080px",["br"],"Single thread processing"],
+    
+    ["img",{"src":"./laser_height_test.png"}],
+    ["p","MacBook Air (M1, 2020)"],
+    ["table",
+        ["tr",["td",["span",{"style":"font-weight:bold"},"zpng"]," (Sub filter)"],["td","3.5MB"],["td","0.015sec"]],
+        ["tr",["td",{"style":"font-weight:bold"},"QOI"],["td","4.3MB"],["td","0.014sec"]]
+    ],
+    ["p","iPhone 13 Pro"],
+    ["table",
+        ["tr",["td",["span",{"style":"font-weight:bold"},"zpng"]," (Sub filter)"],["td","3.5MB"],["td","0.012sec"]],
+        ["tr",["td",{"style":"font-weight:bold"},"QOI"],["td","4.3MB"],["td","0.010sec"]]
+    ],
+    ["p","MacBook Air (M1, 2020)"],
+    ["img",{"src":"./noise.png"}],
+    ["table",
+        ["tr",["td",["span",{"style":"font-weight:bold"},"zpng"]," (Sub filter)"],["td","6.2MB"],["td","0.006sec"]],
+        ["tr",["td",{"style":"font-weight:bold"},"QOI"],["td","8.3MB"],["td","0.010sec"]]
+    ],
+    ["p","iPhone 13 Pro"],
+    ["table",
+        ["tr",["td",["span",{"style":"font-weight:bold"},"zpng"]," (Sub filter)"],["td","6.2MB"],["td","0.006sec"]],
+        ["tr",["td",{"style":"font-weight:bold"},"QOI"],["td","8.3MB"],["td","0.009sec"]]
+    ]
+]

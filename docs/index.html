@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <title>WIP</title>
+    <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+    <script>
+        
+        // https://github.com/KoryNunn/crel
+        (e=>{const t="function",n="isNode",r=document,o=(e,t)=>typeof e===t,i=(e,t)=>{null!==t&&(Array.isArray(t)?t.map(t=>i(e,t)):(a[n](t)||(t=r.createTextNode(t)),e.appendChild(t)))};function a(e,f){let l,d,s=arguments,c=1;if(e=a.isElement(e)?e:r.createElement(e),o(f,"object")&&!a[n](f)&&!Array.isArray(f))for(l in c++,f)d=f[l],l=a.attrMap[l]||l,o(l,t)?l(e,d):o(d,t)?e[l]=d:e.setAttribute(l,d);for(;c<s.length;c++)i(e,s[c]);return e}a.attrMap={},a.isElement=(e=>e instanceof Element),a[n]=(e=>e instanceof Node),a.proxy=new Proxy(a,{get:(e,t)=>(!(t in a)&&(a[t]=a.bind(null,t)),a[t])}),e(a,t)})((e,t)=>{"object"==typeof exports?module.exports=e:typeof define===t&&define.amd?define(e):this.crel=e});
+        
+        window.gist = function() {
+            let cnt = 0;
+            return function(uid,gid) {
+                const scripts = document.querySelector("#container").querySelectorAll("script");
+                for(let k=0; k<scripts.length; k++) {
+                    if(scripts[k].textContent.indexOf(gid)===("gist('"+uid+"','").length) {
+                        const target = scripts[k];
+                        if(!target.getAttribute("active")) {
+                            target.setAttribute("active",true);
+                            const script = document.createElement("script");
+                            script.type = "text/javascript"; 
+                            const div = document.createElement("div");
+                            div.className = "gist-wrapper";
+                            div.style.display = "none";
+                            const callbackName = "gist_"+gid+"_"+(cnt++);
+                            window[callbackName] = function(data) {
+                                delete window[callbackName];
+                                const css = document.createElement("link");
+                                css.type = "text/css"; 
+                                css.rel = "stylesheet";
+                                css.onload = function(){
+                                    div.style.display = "block";
+                                };
+                                css.href = data.stylesheet;
+                                div.parentNode.insertBefore(css,div);
+                                div.innerHTML = data.div;
+                                script.parentNode.removeChild(script);
+                                target.parentNode.removeChild(target);
+                            };
+                            script.setAttribute("src","https://gist.github.com/"+uid+"/"+gid+".json?callback="+callbackName);
+                            target.parentNode.insertBefore(script,target.nextSibling);				
+                            script.parentNode.insertBefore(div,script.nextSibling);
+                            break;
+                        }
+                    }
+                }
+            }
+        }();
+                
+        const decode = function(tmp) {
+            const xhr = new XMLHttpRequest();
+            xhr.onreadystatechange = function() {
+                if(this.readyState==4) {
+                    let div = crel("div",{"id":"container"});
+                    if(this.response) {
+                        if(Array.isArray(this.response)) {		
+                            for(var k=0; k<this.response.length; k++) {
+                                if(Array.isArray(this.response[k])) {	
+                                    crel(div,make(replace(this.response[k],"./"+tmp.uid+"/")));
+                                }
+                            }
+                        }
+                        
+                        if(tmp.uid) {
+                            if(tmp.tags&&tmp.tags.length>=1) {
+                                const h1 = crel("h1",tmp.uid);
+                                div.insertBefore(h1,div.firstChild);
+                                const tags = crel("p",{"class":"tags"});
+                                crel(tags,crel("a",{"href":"./"},"#all"));
+                                for(let t=0; t<tmp.tags.length; t++) {
+                                    crel(tags,crel("a",{"href":"./?tag="+tmp.tags[t]},"#"+tmp.tags[t]));
+                                }
+                                h1.parentNode.insertBefore(tags,h1.nextSibling);
+                            }
+                            else {
+                                if(!(div&&div.firstChild&&div.firstChild.nodeName&&div.firstChild.nodeName.toLowerCase()=="h1")) {
+                                    const h1 = crel("h1",tmp.uid);
+                                    div.insertBefore(h1,div.firstChild);
+                                }
+                            }
+                        }
+                                                
+                        let title = div.querySelector("h1").textContent;
+                        if(title) document.title = title;
+                        
+                        const a = div.querySelectorAll("a");
+                        const host = window.location.host;
+                        for(var k=0; k<a.length; k++) {
+                            if(a[k].href.indexOf(host)===-1) {
+                                a[k].setAttribute("target","_blank");
+                            }
+                        }
+                        const video = div.querySelectorAll("video");
+                        for(var n=0; n<video.length; n++) {
+                            video[n].style.width = "100%";
+                            video[n].setAttribute("controls",true);
+                            video[n].setAttribute("autoplay",true);
+                            video[n].setAttribute("muted",true);
+                            video[n].setAttribute("playsinline",true);
+                            video[n].setAttribute("webkit-playsinline",true);
+                            video[n].setAttribute("loop",true);
+                            if(video[n].readyState!=4) {
+                                video[n].addEventListener("loadedmetadata",function(){
+                                    this.style.display="inline-block";
+                                    this.style.height = "auto";
+                                });
+                                video[n].style.display = "none";
+                                video[n].style.height = 0;
+                            }
+                        }
+                    }
+                    else {
+                        crel(div,crel("p",crel("span",{"style":"border-bottom:none;"},"Error")));
+                    }
+                   
+                    crel(document.body,div);
+                }
+            }
+            xhr.open("GET","./"+tmp.uid+"/index.json",true);
+            xhr.responseType ="json";
+            xhr.send();
+        }
+        const replace = function(arr,path) {
+            return arr.map(el=>{
+            if(Array.isArray(el)) el = replace(el);
+            if(el.hasOwnProperty("src")) el.src = el.src.replace("./",path);
+                return el;
+            });
+        };
+        const make = function(b) {
+            for(var k=0; k<b.length; k++) {
+                if(Array.isArray(b[k])) {
+                    b[k] = make(b[k]);
+                }
+            }
+            if(b.length>0&&b[0]=="code") {
+                tmp = b[b.length-1];
+                if(typeof(tmp)==="string"&&tmp.length>1) {
+                    b[b.length-1]=decodeURI(tmp);
+                }
+            }
+            return crel.apply({},b);
+        }
+        const set = function(data) {
+            const xhr = new XMLHttpRequest();
+            xhr.onreadystatechange = function() {
+                if(this.readyState==4) {
+                    const div = crel("div",{"id":"container"});
+                    if(this.response) {
+                        if(data.type==="page") {
+                            if(data.func&&typeof(data.func)==="function") data.func(this.response,data.uid);
+                        }
+                        else {
+                            const list = crel("div",{"id":"list"});
+                            if(data.type==="list") {
+                                crel(document.body,div);
+                                for(let k=0; k<this.response.length; k++) {
+                                    const p = crel("p",
+                                        crel("a",{"href":"./?uid="+this.response[k].uid},crel("span",this.response[k].uid)));
+                                    if(this.response[k].new) p.className = "new";
+                                    crel(list,p);
+                                }
+                            }
+                            else if(data.type==="tag") {
+                                crel(div,crel("h1","#"+data.tag));
+                                crel(div,crel("p",crel("a",{"href":"./"},"#all")));
+                                for(let k=0; k<this.response.length; k++) {
+                                    const tags = this.response[k].tags;
+                                    if(tags) {
+                                        for(let t=0; t<tags.length; t++) {
+                                            if(data.tag==tags[t]) {
+                                                const p = crel("p",
+                                                    crel("a",{"href":"./?uid="+this.response[k].uid},crel("span",this.response[k].uid)));
+                                                if(this.response[k].new) p.className = "new";
+                                                crel(list,p);
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if(list.children.length) crel(div,list);
+                            crel(document.body,div);
+                        }
+                    }
+                    else {
+                        
+                        if(data.type==="page") {
+                            decode({uid:value,tags:[],new:false});
+                        }
+                        else {
+                            crel(div,crel("p",crel("span",{"style":"border-bottom:none;"},"Error")));
+                            crel(document.body,div);
+                        }
+                    
+                    }
+                }
+            }
+            xhr.open("GET","./list.json",true);
+            xhr.responseType ="json";
+            xhr.send();
+        };
+            
+        let key = "uid";
+        let value = "slowmotion";
+        const query = window.location.search.substring(1);
+        if(query) {
+            const q = query.split("&")[0];
+            if(q.indexOf("=")>0) {
+                const data = q.split("=");
+                key = data[0];
+                value = data[1];
+            }
+        }
+    
+        if(key.length>=1&&value.length>=1) {
+            if(key=="tag") {
+                set({"type":"tag","tag":value});
+            }
+            else if(key==="uid") {
+                set({"type":"page","uid":value,"func":function(response) {
+                    let found = false;
+                    for(let k=0; k<response.length; k++) {
+                        if(response[k].uid==value) {
+                            found = true;
+                            decode(response[k]);
+                            break;
+                        }
+                    }
+                    if(!found) {
+                        decode({uid:value,tags:[],new:false});
+                    }
+                }});
+            }
+            else {
+                set({"type":"list"});
+            }
+        }
+        else {
+            set({"type":"list"});
+        }
+    </script>
+</body>
+</html>
