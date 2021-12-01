@@ -14,7 +14,7 @@ namespace Filter {
         Adaptive = 5
     };
 
-    const static int THREAD = 4;
+    const static int THREAD = 0;
 
     inline unsigned char predictor(unsigned char a, unsigned char b, unsigned char c) {
          int p = a+b-c;
