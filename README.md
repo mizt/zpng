@@ -18,7 +18,7 @@ Support only co64 atom.
 
 ```
 Filter::Encoder *encoder = new Filter::Encoder(w,h,Filter::Color::RGBA);
-encoder->encode(src,Filter::Color::RGBA,5);
+encoder->encode(src,Filter::Color::RGBA,Filter::Type::Sub);
 size_t len = ZSTD_compress(dst,(w+1)*h*encoder->bpp(),encoder->bytes(),encoder->length(),1);
 QTZPNGRecorder *recorder = new QTZPNGRecorder(w,h,30,@"./zpng.mov");
 recorder->add((unsigned char *)dst,len);
