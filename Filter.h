@@ -14,7 +14,8 @@ namespace Filter {
         Adaptive = 5
     };
 
-    const static int THREAD = 0;
+    const static int MAX_THREAD = 8;
+    const static int THREAD = 4;
 
     inline unsigned char predictor(unsigned char a, unsigned char b, unsigned char c) {
          int p = a+b-c;
@@ -38,7 +39,7 @@ namespace Filter {
             unsigned char *_bytes = nullptr;
             unsigned int _length = 0;
         
-            unsigned char _black[4] = {0,0,0,0};
+            unsigned char _blank[4] = {0,0,0,0};
         
         public:
         
@@ -70,7 +71,7 @@ namespace Filter {
         
         public:
         
-            Encoder(unsigned int w, unsigned int h,Filter::Color bpp) : Base(w,h,bpp) {
+            Encoder(unsigned int w, unsigned int h, Filter::Color bpp) : Base(w,h,bpp) {
                 for(int f=1; f<5; f++) this->_filters[f] = new unsigned char[this->_width*this->_bpp];
             }
             
@@ -80,8 +81,7 @@ namespace Filter {
                 }
             }
         
-        
-            void encode(unsigned char *buffer,Filter::Color ch,Filter::Type filter, unsigned int begin, unsigned int end) {
+            void encode(unsigned char *buffer, Filter::Color ch, Filter::Type filter, unsigned int begin, unsigned int end) {
                                 
                 unsigned int src_row = this->_width*ch;
                 unsigned int dst_row = this->_width*this->_bpp;
@@ -99,7 +99,7 @@ namespace Filter {
                     
                     if(type==Filter::Type::Sub) {
                         for(int j=0; j<this->_width; j++) {
-                            unsigned char *W = (j==0)?this->_black:buffer+i*src_row+(j-1)*ch;
+                            unsigned char *W = (j==0)?this->_blank:buffer+i*src_row+(j-1)*ch;
                             for(int n=0; n<num; n++) *dst++ = ((*src++)-(*W++))&0xFF;
                             if(!eq) {
                                 if(this->_bpp<ch) src++;
@@ -109,7 +109,7 @@ namespace Filter {
                     }
                     else if(type==Filter::Type::Up) {
                         for(int j=0; j<this->_width; j++) {
-                            unsigned char *N = (i==0)?this->_black:buffer+(i-1)*src_row+j*ch;
+                            unsigned char *N = (i==0)?this->_blank:buffer+(i-1)*src_row+j*ch;
                             for(int n=0; n<num; n++) *dst++ = ((*src++)-(*N++))&0xFF;
                             if(!eq) {
                                 if(this->_bpp<ch) src++;
@@ -119,8 +119,8 @@ namespace Filter {
                     }
                     else if(type==Filter::Type::Average) {
                         for(int j=0; j<this->_width; j++) {
-                            unsigned char *W = (j==0)?this->_black:buffer+i*src_row+(j-1)*ch;
-                            unsigned char *N = (i==0)?this->_black:buffer+(i-1)*src_row+j*ch;
+                            unsigned char *W = (j==0)?this->_blank:buffer+i*src_row+(j-1)*ch;
+                            unsigned char *N = (i==0)?this->_blank:buffer+(i-1)*src_row+j*ch;
                             for(int n=0; n<num; n++) *dst++ = ((*src++)-(((*W++)+(*N++))>>1))&0xFF;
                             if(!eq) {
                                 if(this->_bpp<ch) src++;
@@ -130,9 +130,9 @@ namespace Filter {
                     }
                     else if(type==Filter::Type::Paeth) {
                         for(int j=0; j<this->_width; j++) {
-                            unsigned char *W = (j==0)?this->_black:buffer+i*src_row+(j-1)*ch;
-                            unsigned char *N = (i==0)?this->_black:buffer+(i-1)*src_row+j*ch;
-                            unsigned char *NW = (i==0||j==0)?this->_black:buffer+(i-1)*src_row+(j-1)*ch;
+                            unsigned char *W = (j==0)?this->_blank:buffer+i*src_row+(j-1)*ch;
+                            unsigned char *N = (i==0)?this->_blank:buffer+(i-1)*src_row+j*ch;
+                            unsigned char *NW = (i==0||j==0)?this->_blank:buffer+(i-1)*src_row+(j-1)*ch;
                             for(int n=0; n<num; n++) *dst++ = ((*src++)-predictor((*W++),(*N++),(*NW++)))&0xFF;
                             if(!eq) {
                                 if(this->_bpp<ch) src++;
@@ -142,9 +142,9 @@ namespace Filter {
                     }
                     else if(type==Filter::Type::Adaptive) {
                         for(int j=0; j<this->_width; j++) {
-                            unsigned char *W = (j==0)?this->_black:buffer+i*src_row+(j-1)*ch;
-                            unsigned char *N = (i==0)?this->_black:buffer+(i-1)*src_row+j*ch;
-                            unsigned char *NW = (i==0||j==0)?this->_black:buffer+(i-1)*src_row+(j-1)*ch;
+                            unsigned char *W = (j==0)?this->_blank:buffer+i*src_row+(j-1)*ch;
+                            unsigned char *N = (i==0)?this->_blank:buffer+(i-1)*src_row+j*ch;
+                            unsigned char *NW = (i==0||j==0)?this->_blank:buffer+(i-1)*src_row+(j-1)*ch;
                             for(int n=0; n<num; n++) {
                                 this->_filters[1][j*this->_bpp+n] = (*src-*W)&0xFF;
                                 this->_filters[2][j*this->_bpp+n] = (*src-*N)&0xFF;
@@ -176,7 +176,6 @@ namespace Filter {
                             }
                         }
                         type = best_filter[INDEX];
-                        
                         for(int j=0; j<this->_width; j++) {
                             for(int n=0; n<num; n++) {
                                 *dst++ = this->_filters[type][j*this->_bpp+n];
@@ -187,7 +186,7 @@ namespace Filter {
                             }
                         }
                     }
-                    else {
+                    else { // Filter::Type::None
                         for(int j=0; j<this->_width; j++) {
                             for(int n=0; n<num; n++) *dst++ = *src++;
                             if(!eq) {
@@ -202,29 +201,21 @@ namespace Filter {
             }
         
             void encode(unsigned char *buffer,Filter::Color ch,Filter::Type filter) {
-                
                 this->_length = this->_height*(this->_width+1)*this->_bpp;
-                
-                if(THREAD==0) {
+                if(Filter::THREAD==0) {
                     this->encode(buffer,ch,filter,0,this->_height);
                 }
                 else {
-                    unsigned char thread = THREAD>=8?8:THREAD;
-                    
+                    unsigned char thread = Filter::THREAD>=Filter::MAX_THREAD?Filter::MAX_THREAD:Filter::THREAD;
                     int step = this->_height/thread;
-                    
                     for(int n=0; n<thread; n++) {
-                        
                         unsigned int begin = step*n;
                         unsigned int end = (n<thread-1)?step*(n+1):this->_height;
-                        
                         dispatch_group_async(this->_group,_queue,^{
                             this->encode(buffer,ch,filter,begin,end);
                         });
                     }
-                    
                     dispatch_group_wait(this->_group,DISPATCH_TIME_FOREVER);
-
                 }
             }
     };
@@ -233,7 +224,7 @@ namespace Filter {
         
         public:
             
-            Decoder(unsigned int w, unsigned int h, unsigned int bpp) : Base(w,h,bpp) {
+            Decoder(unsigned int w, unsigned int h, Filter::Color bpp) : Base(w,h,bpp) {
                 
             }
             
@@ -241,16 +232,14 @@ namespace Filter {
                 
             }
         
-            void decode(unsigned char *buffer, int ch) {
+            void decode(unsigned char *buffer, Filter::Color ch, unsigned int begin, unsigned int end) {
                 
                 int len = this->_height*(this->_width+1)*this->_bpp;
                 for(int k=0; k<len; k++) this->_bytes[k] = 0;
                 
                 unsigned int src_row = this->_width*ch;
                 unsigned int dst_row = this->_width*this->_bpp;
-                
-                this->_length = this->_height*dst_row;
-                
+                                
                 int num = (this->_bpp>ch)?ch:this->_bpp;
                 
                 for(int i=0; i<this->_height; i++) {
@@ -259,52 +248,71 @@ namespace Filter {
                     unsigned char *dst = this->_bytes+i*dst_row;
 
                     unsigned int filter = *src++;
-                    if(filter>=6) {
+                    if(filter>=Filter::Type::Adaptive+1) {
                         return;
                     }
                     
-                    if(filter==1) {
+                    if(filter==Filter::Type::Sub) {
                         for(int j=0; j<this->_width; j++) {
-                            unsigned char *W = (j==0)?this->_black:this->_bytes+i*dst_row+(j-1)*this->_bpp;
+                            unsigned char *W = (j==0)?this->_blank:this->_bytes+i*dst_row+(j-1)*this->_bpp;
                             for(int n=0; n<num; n++) *dst++ = ((*src++)+(*W++))&0xFF;
                             if(this->_bpp<ch) src++;
                             else if(this->_bpp>ch) *dst++ = 0xFF;
                         }
                     }
-                    else if(filter==2) {
+                    else if(filter==Filter::Type::Up) {
                         for(int j=0; j<this->_width; j++) {
-                            unsigned char *N = (i==0)?this->_black:this->_bytes+(i-1)*dst_row+j*this->_bpp;
+                            unsigned char *N = (i==0)?this->_blank:this->_bytes+(i-1)*dst_row+j*this->_bpp;
                             for(int n=0; n<num; n++) *dst++ = ((*src++)+(*N++))&0xFF;
                             if(this->_bpp<ch) src++;
                             else if(this->_bpp>ch) *dst++ = 0xFF;
                         }
                     }
-                    else if(filter==3) {
+                    else if(filter==Filter::Type::Average) {
                         for(int j=0; j<this->_width; j++) {
-                            unsigned char *W = (j==0)?this->_black:this->_bytes+i*dst_row+(j-1)*this->_bpp;
-                            unsigned char *N = (i==0)?this->_black:this->_bytes+(i-1)*dst_row+j*this->_bpp;
+                            unsigned char *W = (j==0)?this->_blank:this->_bytes+i*dst_row+(j-1)*this->_bpp;
+                            unsigned char *N = (i==0)?this->_blank:this->_bytes+(i-1)*dst_row+j*this->_bpp;
                             for(int n=0; n<num; n++) *dst++ = ((*src++)+(((*W++)+(*N++))>>1))&0xFF;
                             if(this->_bpp<ch) src++;
                             else if(this->_bpp>ch) *dst++ = 0xFF;
                         }
                     }
-                    else if(filter==4) {
+                    else if(filter==Filter::Type::Paeth) {
                         for(int j=0; j<this->_width; j++) {
-                            unsigned char *W = (j==0)?this->_black:this->_bytes+i*dst_row+(j-1)*this->_bpp;
-                            unsigned char *N = (i==0)?this->_black:this->_bytes+(i-1)*dst_row+j*this->_bpp;
-                            unsigned char *NW = (i==0||j==0)?this->_black:this->_bytes+(i-1)*dst_row+(j-1)*this->_bpp;
+                            unsigned char *W = (j==0)?this->_blank:this->_bytes+i*dst_row+(j-1)*this->_bpp;
+                            unsigned char *N = (i==0)?this->_blank:this->_bytes+(i-1)*dst_row+j*this->_bpp;
+                            unsigned char *NW = (i==0||j==0)?this->_blank:this->_bytes+(i-1)*dst_row+(j-1)*this->_bpp;
                             for(int n=0; n<num; n++) *dst++ = ((*src++)+predictor((*W++),(*N++),(*NW++)))&0xFF;
                             if(this->_bpp<ch) src++;
                             else if(this->_bpp>ch) *dst++ = 0xFF;
                         }
                     }
-                    else { // 0
+                    else { // Filter::Type::None
                         for(int j=0; j<this->_width; j++) {
                             for(int n=0; n<num; n++) *dst++ = *src++;
                             if(this->_bpp<ch) src++;
                             else if(this->_bpp>ch) *dst++ = 0xFF;
                         }
                     }
+                }
+            }
+        
+            void decode(unsigned char *buffer, Filter::Color ch) {
+                this->_length = this->_width*this->_height*this->_bpp;
+                if(Filter::THREAD==0) {
+                    this->decode(buffer,ch,0,this->_height);
+                }
+                else {
+                    unsigned char thread = Filter::THREAD>=Filter::MAX_THREAD?Filter::MAX_THREAD:Filter::THREAD;
+                    int step = this->_height/thread;
+                    for(int n=0; n<thread; n++) {
+                        unsigned int begin = step*n;
+                        unsigned int end = (n<thread-1)?step*(n+1):this->_height;
+                        dispatch_group_async(this->_group,_queue,^{
+                            this->decode(buffer,ch,begin,end);
+                        });
+                    }
+                    dispatch_group_wait(this->_group,DISPATCH_TIME_FOREVER);
                 }
             }
             
