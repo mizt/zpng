@@ -38,7 +38,7 @@ int main(int argc, const char * argv[]) {
     
     encoder->encode((unsigned char *)src,Filter::Color::RGBA,Filter::Type::Sub);
     unsigned char *dst = new unsigned char[encoder->length()];
-    size_t len = ZSTD_compress(dst,w*h*encoder->bpp(),encoder->bytes(),encoder->length(),1);
+    size_t len = ZSTD_compress(dst,(w+1)*h*encoder->bpp(),encoder->bytes(),encoder->length(),1);
     recorder->add(dst,(unsigned int)len);
     recorder->add(dst,(unsigned int)len);
     recorder->add(dst,(unsigned int)len);
